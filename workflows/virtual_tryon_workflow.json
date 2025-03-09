@@ -1,0 +1,526 @@
+{
+  "last_node_id": 10,
+  "last_link_id": 15,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        100,
+        200
+      ],
+      "size": {
+        "0": 315,
+        "1": 290
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "model.png",
+        "image"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "LoadImage",
+      "pos": [
+        100,
+        550
+      ],
+      "size": {
+        "0": 315,
+        "1": 290
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "cloth.png",
+        "image"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "ModelPreprocessor",
+      "pos": [
+        500,
+        200
+      ],
+      "size": {
+        "0": 315,
+        "1": 178
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "processed_image",
+          "type": "IMAGE",
+          "links": [
+            5
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "segmentation_mask",
+          "type": "MASK",
+          "links": [
+            7
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "pose_keypoints",
+          "type": "POSE_DATA",
+          "links": [
+            4
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ModelPreprocessor"
+      },
+      "widgets_values": [
+        true,
+        true
+      ]
+    },
+    {
+      "id": 4,
+      "type": "ClothPreprocessor",
+      "pos": [
+        500,
+        550
+      ],
+      "size": {
+        "0": 315,
+        "1": 178
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "processed_cloth",
+          "type": "IMAGE",
+          "links": [
+            3
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "cloth_mask",
+          "type": "MASK",
+          "links": [
+            8
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ClothPreprocessor"
+      },
+      "widgets_values": [
+        true,
+        0.5
+      ]
+    },
+    {
+      "id": 5,
+      "type": "ClothWarper",
+      "pos": [
+        900,
+        400
+      ],
+      "size": {
+        "0": 315,
+        "1": 202
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "cloth_image",
+          "type": "IMAGE",
+          "link": 3
+        },
+        {
+          "name": "cloth_mask",
+          "type": "MASK",
+          "link": 8
+        },
+        {
+          "name": "pose_data",
+          "type": "POSE_DATA",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "warped_cloth",
+          "type": "IMAGE",
+          "links": [
+            9
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "warped_mask",
+          "type": "MASK",
+          "links": [
+            10
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ClothWarper"
+      },
+      "widgets_values": [
+        1.0,
+        true
+      ]
+    },
+    {
+      "id": 6,
+      "type": "ImageFusionNode",
+      "pos": [
+        1300,
+        400
+      ],
+      "size": {
+        "0": 315,
+        "1": 250
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model_image",
+          "type": "IMAGE",
+          "link": 5
+        },
+        {
+          "name": "warped_cloth",
+          "type": "IMAGE",
+          "link": 9
+        },
+        {
+          "name": "warped_mask",
+          "type": "MASK",
+          "link": 10
+        },
+        {
+          "name": "model_mask",
+          "type": "MASK",
+          "link": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "fused_image",
+          "type": "IMAGE",
+          "links": [
+            11
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageFusionNode"
+      },
+      "widgets_values": [
+        "seamless",
+        0.8,
+        true
+      ]
+    },
+    {
+      "id": 7,
+      "type": "PostProcessor",
+      "pos": [
+        1700,
+        400
+      ],
+      "size": {
+        "0": 315,
+        "1": 250
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 11
+        }
+      ],
+      "outputs": [
+        {
+          "name": "enhanced_image",
+          "type": "IMAGE",
+          "links": [
+            12
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PostProcessor"
+      },
+      "widgets_values": [
+        true,
+        true,
+        true,
+        1.2,
+        1.1,
+        1.05
+      ]
+    },
+    {
+      "id": 8,
+      "type": "PreviewImage",
+      "pos": [
+        2100,
+        400
+      ],
+      "size": {
+        "0": 400,
+        "1": 400
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 12
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 9,
+      "type": "Note",
+      "pos": [
+        100,
+        50
+      ],
+      "size": {
+        "0": 400,
+        "1": 100
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "properties": {
+        "text": "# ComfyUI Virtual Try-On Workflow\nLoad a model image and a clothing image to generate a virtual try-on result."
+      }
+    },
+    {
+      "id": 10,
+      "type": "SaveImage",
+      "pos": [
+        2100,
+        850
+      ],
+      "size": {
+        "0": 315,
+        "1": 270
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 12
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI",
+        "virtual_tryon_result"
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      2,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      3,
+      4,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      2,
+      5,
+      2,
+      "POSE_DATA"
+    ],
+    [
+      5,
+      3,
+      0,
+      6,
+      0,
+      "IMAGE"
+    ],
+    [
+      7,
+      3,
+      1,
+      6,
+      3,
+      "MASK"
+    ],
+    [
+      8,
+      4,
+      1,
+      5,
+      1,
+      "MASK"
+    ],
+    [
+      9,
+      5,
+      0,
+      6,
+      1,
+      "IMAGE"
+    ],
+    [
+      10,
+      5,
+      1,
+      6,
+      2,
+      "MASK"
+    ],
+    [
+      11,
+      6,
+      0,
+      7,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      7,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      7,
+      0,
+      10,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+} 
