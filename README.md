@@ -1,49 +1,92 @@
-# ComfyUI Virtual Try-On Workflow
+# Virtual Try-On E-commerce Website
 
-A comprehensive virtual try-on solution built with ComfyUI that allows users to visualize clothing items on model images with realistic results.
+A modern e-commerce website with virtual try-on functionality, built using React, Flask, and Stripe.
 
 ## Features
 
-- **Model & Cloth Processing**: Extract pose, segmentation masks, and clothing regions
-- **Intelligent Warping**: TPS (Thin Plate Spline) warping to fit clothing to model's body shape
-- **Realistic Blending**: Seamless integration using diffusion models
-- **High-Quality Output**: Super-resolution enhancement for photorealistic results
-- **Batch Processing**: Try multiple outfits on multiple models in a single run
+- Virtual try-on using AI technology
+- Product catalog with filtering
+- Shopping cart functionality
+- Secure payment processing with Stripe
+- User authentication
+- Responsive design
 
-## Requirements
+## Prerequisites
 
-- Python 3.8+
-- ComfyUI
-- Required Python packages (see `requirements.txt`)
+- Python 3.8 or higher
+- Node.js 14 or higher
+- Stripe account
+- ComfyUI setup for virtual try-on
 
-## Installation
+## Setup
 
-1. Clone this repository into your ComfyUI custom_nodes directory:
-   ```
-   cd ComfyUI/custom_nodes
-   git clone https://github.com/yourusername/comfyvirtual.git
-   ```
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd virtual-tryon-ecommerce
+```
 
-2. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+2. Install backend dependencies:
+```bash
+pip install -r requirements.txt
+```
 
-3. Start ComfyUI and load the workflow from the `workflows` directory.
+3. Install frontend dependencies:
+```bash
+cd frontend
+npm install
+```
+
+4. Create a `.env` file in the root directory with the following variables:
+```
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret
+```
+
+5. Start the backend server:
+```bash
+python api.py
+```
+
+6. Start the frontend development server:
+```bash
+cd frontend
+npm start
+```
 
 ## Usage
 
-1. Load the workflow in ComfyUI
-2. Connect your model image and clothing image to the appropriate inputs
-3. Run the workflow to generate the virtual try-on result
+1. Browse products in the catalog
+2. Use the virtual try-on feature to see how clothes look on you
+3. Add items to your cart
+4. Proceed to checkout
+5. Enter shipping information and payment details
+6. Complete your purchase
 
-## Directory Structure
+## Virtual Try-On
 
-- `nodes/`: Custom ComfyUI nodes for the virtual try-on pipeline
-- `workflows/`: Example ComfyUI workflows
-- `models/`: Pre-trained models for pose estimation, segmentation, etc.
-- `examples/`: Example input and output images
+The virtual try-on feature allows users to:
+- Upload their photo
+- Select clothing items from the catalog
+- See how the clothes would look on them
+- Save and share their virtual try-on results
+
+## Payment Processing
+
+The website uses Stripe for secure payment processing. Make sure to:
+1. Set up a Stripe account
+2. Configure your Stripe API keys in the `.env` file
+3. Set up webhook endpoints for payment notifications
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request
 
 ## License
 
-MIT 
+This project is licensed under the MIT License - see the LICENSE file for details. 

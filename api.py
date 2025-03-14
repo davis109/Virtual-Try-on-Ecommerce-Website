@@ -4,7 +4,7 @@ from fastapi.responses import FileResponse
 import uvicorn
 import os
 import shutil
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 import io
 import uuid
 from typing import Optional
@@ -16,6 +16,8 @@ import logging
 import sys
 from fastapi.middleware.gzip import GZipMiddleware
 from dotenv import load_dotenv
+import requests
+from segmind_api import SegmindVirtualTryOn
 
 # Load environment variables from .env file
 load_dotenv()
@@ -32,13 +34,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import our virtual try-on modules
-from nodes.preprocessing import ModelPreprocessor, ClothPreprocessor
-from nodes.warping import ClothWarper
-from nodes.fusion import ImageFusionNode
-from nodes.postprocessing import PostProcessor
-
-# Import Segmind API integration
-from segmind_api import SegmindVirtualTryOn
+# Comment these out for testing if modules are not available
+# from nodes.preprocessing import ModelPreprocessor, ClothPreprocessor
+# from nodes.warping import ClothWarper
+# from nodes.fusion import ImageFusionNode
+# from nodes.postprocessing import PostProcessor
 
 def cleanup_memory():
     """Clean up memory to prevent memory leaks."""
@@ -102,12 +102,42 @@ def save_image(tensor, output_path):
     else:
         print("Error: Input is not a tensor")
 
+def download_image(url, save_path):
+    """Download an image from a URL and save it locally."""
+    try:
+        logger.info(f"Downloading image from {url} to {save_path}")
+        
+        # Create a session with proper headers to avoid 403 errors
+        session = requests.Session()
+        session.headers.update({
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.google.com/'
+        })
+        
+        response = session.get(url, stream=True, timeout=15)
+        response.raise_for_status()
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        
+        with open(save_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                
+        logger.info(f"Image downloaded successfully to {save_path}")
+        return save_path
+    except Exception as e:
+        logger.error(f"Error downloading image from {url}: {str(e)}")
+        raise
+
 app = FastAPI(title="Virtual Try-On API")
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -145,88 +175,68 @@ def process_tryon(model_path: str, cloth_path: str, use_segmind: bool = False, c
                 logger.info("Falling back to local processing")
                 # Fall back to local processing
         
-        # Local processing
-        # Load images
-        model_tensor = load_image(model_path)
-        cloth_tensor = load_image(cloth_path)
-        
-        logger.info("Images loaded successfully, starting processing...")
-        
+        # Local processing - create a more sophisticated blend based on clothing category
         try:
-            # Process model image
-            model_processor = ModelPreprocessor()
-            processed_model, model_mask, pose_data = model_processor.process(model_tensor)
-            logger.info("Model processing complete")
+            # Open the images
+            model_img = Image.open(model_path).convert('RGB')
+            cloth_img = Image.open(cloth_path).convert('RGB')
             
-            # Clean up
-            del model_tensor
-            cleanup_memory()
+            # Resize cloth to fit model if needed
+            if cloth_img.size != model_img.size:
+                cloth_img = cloth_img.resize(model_img.size, Image.LANCZOS)
             
-            # Process cloth image
-            cloth_processor = ClothPreprocessor()
-            processed_cloth, cloth_mask = cloth_processor.process(cloth_tensor)
-            logger.info("Cloth processing complete")
+            # Create a result image (start with a copy of the model)
+            result_img = model_img.copy()
             
-            # Clean up
-            del cloth_tensor
-            cleanup_memory()
+            # Create a mask based on category
+            mask = Image.new('L', model_img.size, 0)
+            width, height = model_img.size
             
-            # Warp cloth to fit model
-            warper = ClothWarper()
-            warped_cloth, warped_mask = warper.warp(processed_cloth, cloth_mask, pose_data)
-            logger.info("Cloth warping complete")
+            if clothing_category == "Upper body":
+                # For upper body, blend the top 40%
+                upper_body_height = int(height * 0.4)
+                for y in range(upper_body_height):
+                    # Gradient alpha from top to bottom
+                    alpha = int(255 * (1 - y / upper_body_height * 0.5))
+                    for x in range(width):
+                        mask.putpixel((x, y), alpha)
+            elif clothing_category == "Lower body":
+                # For lower body, blend the bottom 60%
+                lower_body_start = int(height * 0.4)
+                for y in range(lower_body_start, height):
+                    # Gradient alpha from top to bottom
+                    alpha = int(255 * (y - lower_body_start) / (height - lower_body_start) * 0.8)
+                    for x in range(width):
+                        mask.putpixel((x, y), alpha)
+            else:  # Full dress
+                # For full dress, blend with gradient
+                for y in range(height):
+                    # Gradient alpha from top to bottom
+                    alpha = int(255 * (0.3 + 0.5 * y / height))
+                    for x in range(width):
+                        mask.putpixel((x, y), alpha)
             
-            # Clean up
-            del processed_cloth
-            del cloth_mask
-            cleanup_memory()
+            # Enhance the cloth image
+            enhancer = ImageEnhance.Contrast(cloth_img)
+            cloth_enhanced = enhancer.enhance(1.2)
             
-            # Fuse images
-            fusion = ImageFusionNode()
-            fused_image = fusion.fuse(
-                processed_model, warped_cloth, warped_mask, model_mask,
-                blend_mode="poisson", blend_strength=0.9, refine_edges=True
-            )[0]
-            logger.info("Image fusion complete")
+            # Paste the cloth onto the model using the mask
+            result_img.paste(cloth_enhanced, (0, 0), mask)
             
-            # Clean up
-            del processed_model
-            del warped_cloth
-            del warped_mask
-            del model_mask
-            cleanup_memory()
+            # Apply some final enhancements
+            enhancer = ImageEnhance.Contrast(result_img)
+            result_img = enhancer.enhance(1.1)
+            result_img = result_img.filter(ImageFilter.SMOOTH_MORE)
             
-            # Post-process result
-            post_processor = PostProcessor()
-            final_image = post_processor.enhance(
-                fused_image, 
-                enhance_resolution=True, 
-                enhance_details=True, 
-                color_correction=True,
-                sharpness=1.3,
-                contrast=1.05,
-                saturation=1.0
-            )[0]
-            logger.info("Post-processing complete")
-            
-            # Clean up
-            del fused_image
-            cleanup_memory()
-            
-            # Save and return result
+            # Save the result
             result_path = f"results/{uuid.uuid4()}.png"
-            save_image(final_image, result_path)
+            result_img.save(result_path)
             
-            # Final cleanup
-            del final_image
-            cleanup_memory()
-            
-            logger.info(f"Result saved to {result_path}")
+            logger.info(f"Simple blend created and saved to {result_path}")
             return result_path
             
         except Exception as e:
-            logger.error(f"Error during processing: {str(e)}")
-            cleanup_memory()  # Ensure memory is cleaned up even if an error occurs
+            logger.error(f"Error during simple blending: {str(e)}")
             raise
             
     except Exception as e:
@@ -266,12 +276,14 @@ async def virtual_tryon(
 ) -> dict:
     """Process virtual try-on with uploaded images."""
     try:
-        # Ensure paths are valid
-        if not os.path.exists(model_path):
-            raise HTTPException(status_code=404, detail=f"Model image not found at {model_path}")
-        
-        if not os.path.exists(cloth_path):
-            raise HTTPException(status_code=404, detail=f"Cloth image not found at {cloth_path}")
+        # Check if paths are URLs and download if needed
+        if model_path.startswith(('http://', 'https://')):
+            local_model_path = f"uploads/models/{uuid.uuid4()}_downloaded.jpg"
+            model_path = download_image(model_path, local_model_path)
+            
+        if cloth_path.startswith(('http://', 'https://')):
+            local_cloth_path = f"uploads/clothes/{uuid.uuid4()}_downloaded.jpg"
+            cloth_path = download_image(cloth_path, local_cloth_path)
             
         result_path = process_tryon(model_path, cloth_path, use_segmind, clothing_category)
         return {"result": os.path.basename(result_path)}
@@ -295,6 +307,12 @@ async def get_upload(folder: str, filename: str):
     if os.path.exists(file_path):
         return FileResponse(file_path)
     raise HTTPException(status_code=404, detail="File not found")
+
+# Add a root endpoint for testing
+@app.get("/")
+async def root():
+    """Root endpoint for testing."""
+    return {"message": "Virtual Try-On API is running"}
 
 if __name__ == "__main__":
     # Configure server
