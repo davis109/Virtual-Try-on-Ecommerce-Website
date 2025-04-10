@@ -12,40 +12,53 @@ import Register from './pages/Register';
 import VirtualTryOn from './pages/VirtualTryOn';
 import Wishlist from './pages/Wishlist';
 
+// Coolors palette: https://coolors.co/fc440f-1effbc-7c9299-1f01b9-b4e33d
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#3f51b5',
-      light: '#757de8',
-      dark: '#002984',
+      main: '#1F01B9', // Duke Blue
+      light: '#5232e8',
+      dark: '#14018a',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#f50057',
-      light: '#ff4081',
-      dark: '#c51162',
+      main: '#FC440F', // Orioles Orange
+      light: '#ff6f3c',
+      dark: '#c93000',
+      contrastText: '#ffffff',
+    },
+    info: {
+      main: '#1EFFBC', // Aquamarine
+      light: '#6fffcf',
+      dark: '#00cc96',
+      contrastText: '#000000',
+    },
+    success: {
+      main: '#B4E33D', // Yellow-Green
+      light: '#cfff71',
+      dark: '#8fb000',
+      contrastText: '#000000',
+    },
+    neutral: {
+      main: '#7C9299', // Light Slate Gray
+      light: '#a6c0c8',
+      dark: '#54666c',
       contrastText: '#ffffff',
     },
     background: {
-      default: '#f5f5f5',
+      default: '#f8f9fa',
       paper: '#ffffff',
     },
     text: {
       primary: '#212121',
-      secondary: '#757575',
+      secondary: '#7C9299',
     },
     error: {
       main: '#f44336',
     },
     warning: {
       main: '#ff9800',
-    },
-    info: {
-      main: '#2196f3',
-    },
-    success: {
-      main: '#4caf50',
     },
   },
   typography: {
@@ -88,10 +101,10 @@ const theme = createTheme({
           },
         },
         containedPrimary: {
-          background: 'linear-gradient(45deg, #3f51b5 30%, #757de8 90%)',
+          background: 'linear-gradient(45deg, #1F01B9 30%, #5232e8 90%)',
         },
         containedSecondary: {
-          background: 'linear-gradient(45deg, #f50057 30%, #ff4081 90%)',
+          background: 'linear-gradient(45deg, #FC440F 30%, #ff6f3c 90%)',
         },
       },
     },
@@ -121,6 +134,18 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           boxShadow: '0px 2px 8px rgba(0, 0, 0, 0.08)',
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        colorPrimary: {
+          backgroundColor: '#1F01B920',
+          color: '#1F01B9',
+        },
+        colorSecondary: {
+          backgroundColor: '#FC440F20',
+          color: '#FC440F',
         },
       },
     },

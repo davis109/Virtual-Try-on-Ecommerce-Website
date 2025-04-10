@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   AppBar,
@@ -31,6 +31,7 @@ import LoginIcon from '@mui/icons-material/Login';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import CloseIcon from '@mui/icons-material/Close';
 import { useSelector } from 'react-redux';
+import { animateNavItems, buttonEnter, buttonLeave, linkEnter, linkLeave, animateLogo } from '../utils/animations';
 
 const Navbar = () => {
   const cartItems = useSelector((state) => state.cart.items);
@@ -39,12 +40,48 @@ const Navbar = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const navRef = useRef(null);
+  const buttonsRef = useRef([]);
+  const iconButtonsRef = useRef([]);
+  const logoRef = useRef(null);
+  
+  // Set up refs for animations
+  useEffect(() => {
+    if (!isMobile && navRef.current) {
+      // Animate navigation items when component mounts
+      animateNavItems(buttonsRef.current);
+    }
+    
+    // Animate the logo
+    if (logoRef.current) {
+      // Delay the logo animation to make it appear after initial load
+      setTimeout(() => {
+        animateLogo(logoRef.current);
+      }, 3000);
+    }
+  }, [isMobile]);
   
   const toggleDrawer = (open) => (event) => {
     if (event.type === 'keydown' && (event.key === 'Tab' || event.key === 'Shift')) {
       return;
     }
     setDrawerOpen(open);
+  };
+  
+  const handleButtonEnter = (e) => {
+    buttonEnter(e.currentTarget);
+  };
+  
+  const handleButtonLeave = (e) => {
+    buttonLeave(e.currentTarget);
+  };
+  
+  const handleIconEnter = (e) => {
+    linkEnter(e.currentTarget);
+  };
+  
+  const handleIconLeave = (e) => {
+    linkLeave(e.currentTarget);
   };
   
   const navItems = [
@@ -67,7 +104,7 @@ const Navbar = () => {
       </Box>
       <Divider />
       <List>
-        {navItems.map((item) => (
+        {navItems.map((item, index) => (
           <ListItem 
             button 
             key={item.text} 
@@ -81,6 +118,8 @@ const Navbar = () => {
                 bgcolor: 'rgba(63, 81, 181, 0.08)',
               }
             }}
+            onMouseEnter={handleButtonEnter}
+            onMouseLeave={handleButtonLeave}
           >
             <ListItemIcon>
               {item.icon}
@@ -103,6 +142,8 @@ const Navbar = () => {
               edge="start"
               onClick={toggleDrawer(true)}
               sx={{ mr: 2 }}
+              onMouseEnter={handleIconEnter}
+              onMouseLeave={handleIconLeave}
             >
               <MenuIcon />
             </IconButton>
@@ -118,15 +159,20 @@ const Navbar = () => {
               color: 'primary.main',
               display: 'flex',
               alignItems: 'center',
+              transition: 'transform 0.3s ease, opacity 0.3s ease',
+              '&:hover': {
+                opacity: 0.9,
+                transform: 'translateY(-2px)'
+              }
             }}
           >
-            <CheckroomIcon sx={{ mr: 1, fontSize: 28 }} />
+            <CheckroomIcon sx={{ mr: 1, fontSize: 28 }} ref={logoRef} />
             Virtual Try-On
           </Typography>
           
           {!isMobile && (
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              {navItems.map((item) => (
+            <Box sx={{ display: 'flex', gap: 1 }} ref={navRef}>
+              {navItems.map((item, index) => (
                 <Button
                   key={item.text}
                   color="inherit"
@@ -136,10 +182,14 @@ const Navbar = () => {
                   sx={{ 
                     fontWeight: 500,
                     mx: 0.5,
+                    opacity: 0, // Start with opacity 0 for animation
                     '&:hover': {
                       bgcolor: 'rgba(63, 81, 181, 0.08)',
                     }
                   }}
+                  onMouseEnter={handleButtonEnter}
+                  onMouseLeave={handleButtonLeave}
+                  ref={(el) => buttonsRef.current[index] = el}
                 >
                   {item.text}
                 </Button>
@@ -152,7 +202,31 @@ const Navbar = () => {
               color="primary"
               component={RouterLink}
               to="/wishlist"
-              sx={{ mx: 0.5 }}
+              sx={{ 
+                mx: 0.5,
+                position: 'relative',
+                overflow: 'hidden',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%)',
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease',
+                  transform: 'scale(0)',
+                },
+                '&:hover::after': {
+                  opacity: 1,
+                  transform: 'scale(2)',
+                  transition: 'transform 0.5s ease, opacity 0.3s ease',
+                }
+              }}
+              onMouseEnter={handleIconEnter}
+              onMouseLeave={handleIconLeave}
+              ref={(el) => iconButtonsRef.current[0] = el}
             >
               <Badge badgeContent={wishlistItems.length} color="secondary">
                 <FavoriteIcon />
@@ -162,7 +236,31 @@ const Navbar = () => {
               color="primary"
               component={RouterLink}
               to="/cart"
-              sx={{ mx: 0.5 }}
+              sx={{ 
+                mx: 0.5,
+                position: 'relative',
+                overflow: 'hidden',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%)',
+                  opacity: 0,
+                  transition: 'opacity 0.3s ease',
+                  transform: 'scale(0)',
+                },
+                '&:hover::after': {
+                  opacity: 1,
+                  transform: 'scale(2)',
+                  transition: 'transform 0.5s ease, opacity 0.3s ease',
+                }
+              }}
+              onMouseEnter={handleIconEnter}
+              onMouseLeave={handleIconLeave}
+              ref={(el) => iconButtonsRef.current[1] = el}
             >
               <Badge badgeContent={cartItems.length} color="secondary">
                 <ShoppingCartIcon />

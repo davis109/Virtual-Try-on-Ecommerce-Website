@@ -24,6 +24,10 @@ import {
   IconButton,
   Chip,
   AlertTitle,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel as MuiFormControlLabel,
+  Radio,
 } from '@mui/material';
 import { styled } from '@mui/material/styles';
 import axios from 'axios';
@@ -36,6 +40,9 @@ import { addToCart } from '../store/cartSlice';
 import { addToWishlist } from '../store/wishlistSlice';
 import CheckroomIcon from '@mui/icons-material/Checkroom';
 import CategoryIcon from '@mui/icons-material/Category';
+import { keyframes } from '@emotion/react';
+import { fadeIn, animateProductCards, animateTryOnButton, buttonEnter, buttonLeave, createScrollReveal } from '../utils/animations';
+import { gsap } from 'gsap';
 
 const API_URL = 'http://localhost:8000';
 
@@ -63,6 +70,18 @@ const Header = styled(Typography)(({ theme }) => ({
   }
 }));
 
+const pulseAnimation = keyframes`
+  0% {
+    box-shadow: 0 0 0 0 rgba(63, 81, 181, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(63, 81, 181, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(63, 81, 181, 0);
+  }
+`;
+
 const UploadSection = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(3),
   marginBottom: theme.spacing(3),
@@ -74,6 +93,9 @@ const UploadSection = styled(Paper)(({ theme }) => ({
   '&:hover': {
     transform: 'translateY(-4px)',
     boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.1)',
+  },
+  '&.pulse-animation': {
+    animation: `${pulseAnimation} 1.5s ease-in-out`,
   },
 }));
 
@@ -106,9 +128,11 @@ const ProductImage = styled(CardMedia)(({ theme }) => ({
 }));
 
 const CategoryChip = styled(Chip)(({ theme, category }) => {
-  let color = theme.palette.primary.main;
-  if (category === 'Lower body') color = theme.palette.info.main;
-  if (category === 'Dress') color = theme.palette.secondary.main;
+  let color;
+  if (category === 'Upper body') color = theme.palette.primary.main;
+  else if (category === 'Lower body') color = theme.palette.info.main;
+  else if (category === 'Dress') color = theme.palette.secondary.main;
+  else color = theme.palette.neutral.main;
   
   return {
     backgroundColor: `${color}20`,
@@ -130,7 +154,7 @@ const VisuallyHiddenInput = styled('input')({
   width: 1,
 });
 
-const ImageUploader = ({ onUpload, imageUrl, accept, maxSize, label, icon }) => {
+const ImageUploader = ({ onUpload, imageUrl, accept, maxSize, label, icon, selectedProductName }) => {
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file && file.size <= maxSize) {
@@ -166,6 +190,7 @@ const ImageUploader = ({ onUpload, imageUrl, accept, maxSize, label, icon }) => 
         textAlign: 'center', 
         flexGrow: 1, 
         display: 'flex', 
+        flexDirection: 'column',
         alignItems: 'center', 
         justifyContent: 'center',
         width: '100%',
@@ -175,11 +200,18 @@ const ImageUploader = ({ onUpload, imageUrl, accept, maxSize, label, icon }) => 
         backgroundColor: imageUrl ? 'transparent' : '#f9f9f9',
       }}>
         {imageUrl ? (
-          <img
-            src={typeof imageUrl === 'object' ? imageUrl.previewUrl : imageUrl}
-            alt="Preview"
-            style={{ maxWidth: '100%', maxHeight: '300px', objectFit: 'contain', borderRadius: '4px' }}
-          />
+          <>
+            {selectedProductName && (
+              <Typography variant="subtitle2" color="primary" sx={{ mb: 1, fontWeight: 'bold' }}>
+                {selectedProductName}
+              </Typography>
+            )}
+            <img
+              src={typeof imageUrl === 'object' ? imageUrl.previewUrl : imageUrl}
+              alt="Preview"
+              style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain', borderRadius: '4px' }}
+            />
+          </>
         ) : (
           <Typography color="textSecondary">
             No image selected. Click the button above to upload.
@@ -233,12 +265,15 @@ const VirtualTryOn = () => {
   const [resultImage, setResultImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [useSegmind, setUseSegmind] = useState(false);
+  const [useSegmind, setUseSegmind] = useState(true);
   const [processingTime, setProcessingTime] = useState(null);
   const [clothingCategory, setClothingCategory] = useState("Upper body");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [tabValue, setTabValue] = useState(0);
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [preloadedImages, setPreloadedImages] = useState({});
+  const [isPreloading, setIsPreloading] = useState(true);
+  const [segmindAvailable, setSegmindAvailable] = useState(true);
   
   const dispatch = useDispatch();
   
@@ -445,6 +480,79 @@ const VirtualTryOn = () => {
     },
   ];
 
+  // Preload all product images when component mounts
+  useEffect(() => {
+    const preloadImages = async () => {
+      setIsPreloading(true);
+      
+      console.log('Preloading all product images...');
+      const preloaded = {};
+      
+      try {
+        // Use Promise.all to load images in parallel (faster)
+        await Promise.all(
+          clothingOptions.map(async (product) => {
+            try {
+              console.log(`Downloading image for ${product.name}...`);
+              
+              // Create a local cache of the image URL
+              const imgEl = new Image();
+              imgEl.src = product.image;
+              
+              // Simply store the image URL for now
+              preloaded[product.id] = {
+                path: product.image,
+                previewUrl: product.image,
+                name: product.name,
+                category: product.category
+              };
+              
+              console.log(`Successfully preloaded ${product.name}`);
+            } catch (err) {
+              console.error(`Error preloading ${product.name}:`, err);
+              // Continue with other images even if one fails
+            }
+          })
+        );
+        
+        setPreloadedImages(preloaded);
+        console.log('Preloading complete:', Object.keys(preloaded).length, 'images loaded');
+      } catch (err) {
+        console.error('Error during preloading:', err);
+      } finally {
+        setIsPreloading(false);
+      }
+    };
+    
+    preloadImages();
+  }, []);
+
+  // Replace the checkSegmindAvailability function
+  useEffect(() => {
+    const checkSegmindAvailability = async () => {
+      try {
+        console.log('Checking Segmind API availability...');
+        const response = await axios.get(`${API_URL}/api/segmind/status`);
+        
+        if (response.data && response.data.available) {
+          setSegmindAvailable(true);
+          setUseSegmind(true);
+          console.log('Segmind API status: Available');
+        } else {
+          console.log('Segmind API is not available:', response.data?.message);
+          setSegmindAvailable(false);
+          setUseSegmind(false);
+        }
+      } catch (err) {
+        console.error('Error checking Segmind API status:', err);
+        setSegmindAvailable(false);
+        setUseSegmind(false);
+      }
+    };
+    
+    checkSegmindAvailability();
+  }, []);
+
   const handleModelUpload = async (file) => {
     setError(null);
     try {
@@ -530,31 +638,52 @@ const VirtualTryOn = () => {
     setClothingCategory(product.category);
     setError(null);
     
+    // Add animation to the clothing upload section
+    const clothUploadSection = document.querySelector('#cloth-upload-section');
+    if (clothUploadSection) {
+      clothUploadSection.classList.add('pulse-animation');
+      setTimeout(() => {
+        clothUploadSection.classList.remove('pulse-animation');
+      }, 1500);
+    }
+    
     try {
       console.log('Selected product:', product);
       
-      // Download the image from the URL and upload it to the server
-      console.log('Downloading product image from:', product.image);
-      
-      // Fetch the image
-      const response = await fetch(product.image);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      // Check if image is preloaded
+      if (preloadedImages[product.id]) {
+        console.log('Using preloaded image for', product.name);
+        setClothImage(preloadedImages[product.id]);
+        
+        // Automatically start try-on if model is uploaded
+        if (modelImage) {
+          setTimeout(() => {
+            handleTryOn();
+          }, 500);
+        } else {
+          setError('Please upload your photo to try on this clothing item');
+        }
+        return;
       }
       
-      // Convert to blob
-      const imageBlob = await response.blob();
+      // Fall back to downloading on-demand if not preloaded
+      console.log('Image not preloaded, downloading from:', product.image);
       
-      // Create a file from the blob
-      const fileName = product.image.split('/').pop() || 'product-image.jpg';
-      const file = new File([imageBlob], fileName, { type: 'image/jpeg' });
+      // Directly set the cloth image from the URL
+      setClothImage({
+        path: product.image,
+        previewUrl: product.image
+      });
       
-      console.log('Created file from image:', file.name, 'Size:', file.size, 'bytes');
-      
-      // Upload the file to the server
-      await handleClothUpload(file);
-      
-      console.log('Product image uploaded successfully');
+      // Automatically start the try-on process if a model image is already uploaded
+      if (modelImage) {
+        setTimeout(() => {
+          handleTryOn();
+        }, 500); // Small delay to ensure the clothing image is fully processed
+      } else {
+        // Let the user know they need to upload a photo to try-on this item
+        setError('Please upload your photo to try on this clothing item');
+      }
     } catch (err) {
       console.error('Error processing product image:', err);
       setError(`Error processing product image: ${err.message}`);
@@ -609,52 +738,18 @@ const VirtualTryOn = () => {
       console.log('- Use Segmind:', useSegmind);
       console.log('- Clothing category:', clothingCategory);
       
-      // If the cloth path is a URL (from product selection), download it first
-      let finalClothPath = clothPath;
-      if (clothPath.startsWith('http') && !clothPath.includes(API_URL)) {
-        console.log('Cloth path is a URL, downloading it first...');
-        try {
-          // Fetch the image
-          const response = await fetch(clothPath);
-          if (!response.ok) {
-            throw new Error(`Failed to fetch image: ${response.statusText}`);
-          }
-          
-          // Convert to blob
-          const imageBlob = await response.blob();
-          
-          // Create a file from the blob
-          const fileName = clothPath.split('/').pop() || 'product-image.jpg';
-          const file = new File([imageBlob], fileName, { type: 'image/jpeg' });
-          
-          console.log('Created file from image:', file.name, 'Size:', file.size, 'bytes');
-          
-          // Upload the file to the server
-          const formData = new FormData();
-          formData.append('file', file);
-          
-          const uploadResponse = await axios.post(`${API_URL}/api/upload/cloth`, formData, {
-            headers: {
-              'Content-Type': 'multipart/form-data',
-            },
-          });
-          
-          finalClothPath = uploadResponse.data.filename;
-          console.log('Cloth image uploaded successfully, new path:', finalClothPath);
-        } catch (err) {
-          console.error('Error downloading and uploading cloth image:', err);
-          throw new Error(`Failed to process cloth image: ${err.message}`);
-        }
-      }
-      
       const startTime = Date.now();
       
-      const apiUrl = `${API_URL}/api/tryon?model_path=${encodeURIComponent(modelPath)}&cloth_path=${encodeURIComponent(finalClothPath)}&use_segmind=${useSegmind}&clothing_category=${encodeURIComponent(clothingCategory)}`;
-      console.log('API URL:', apiUrl);
-      
+      // Using POST with JSON body for the API request
       console.log('Sending try-on request...');
-      const response = await axios.post(apiUrl);
-      console.log('Try-on response received:', response);
+      const response = await axios.post(`${API_URL}/api/tryon`, {
+        model_path: modelPath,
+        cloth_path: clothPath,
+        use_segmind: useSegmind,
+        clothing_category: clothingCategory
+      }, {
+        timeout: useSegmind ? 300000 : 60000 // Increase timeout to 5 minutes for Segmind processing
+      });
       
       const endTime = Date.now();
       setProcessingTime((endTime - startTime) / 1000); // Convert to seconds
@@ -664,18 +759,50 @@ const VirtualTryOn = () => {
         const resultUrl = `${API_URL}/api/result/${response.data.result}`;
         console.log('Result URL:', resultUrl);
         setResultImage(resultUrl);
-        console.log('Result image set to:', resultUrl);
+        // Clear any error messages if successful
+        setError(null);
       } else {
         console.error('Invalid response format:', response.data);
         throw new Error('Invalid response from server');
       }
     } catch (err) {
       console.error('Try-on error:', err);
-      console.error('Error type:', err.constructor.name);
-      console.error('Error message:', err.message);
-      console.error('Response status:', err.response?.status);
-      console.error('Response data:', err.response?.data);
-      setError(`Error processing virtual try-on: ${err.response?.data?.detail || err.message}`);
+      
+      // Handle different types of errors
+      if (err.code === 'ECONNABORTED') {
+        setError('Request timed out. Segmind processing can take several minutes. Please try again or disable Segmind for faster local processing.');
+        
+        // Offer to retry with local processing
+        if (useSegmind && window.confirm('Try-on is taking too long. Would you like to try again without using Segmind API?')) {
+          setUseSegmind(false);
+          setTimeout(() => {
+            handleTryOn();
+          }, 500);
+        }
+      } else if (err.response) {
+        // Server responded with an error status
+        const errorDetail = err.response.data?.detail || 'Unknown error';
+        setError(`Server error (${err.response.status}): ${errorDetail}`);
+        
+        // If it's a 429 rate limit error, suggest retrying
+        if (err.response.status === 429) {
+          setError(`Rate limit exceeded (429). The Segmind API is temporarily unavailable due to too many requests. Please try again in a few minutes or disable Segmind for local processing.`);
+        } 
+
+        // If it's a 422 error with Segmind, try switching to local processing
+        if (err.response.status === 422 && useSegmind && window.confirm('There was an issue with the Segmind API. Would you like to try again with local processing?')) {
+          setUseSegmind(false);
+          setTimeout(() => {
+            handleTryOn();
+          }, 500);
+        }
+      } else if (err.request) {
+        // No response received
+        setError('No response from server. Please check your connection and try again.');
+      } else {
+        // Generic error message
+        setError(`Error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
       console.log('Try-on process completed');
@@ -687,261 +814,427 @@ const VirtualTryOn = () => {
     ? clothingOptions 
     : clothingOptions.filter(product => product.category === categoryFilter);
 
-  return (
-    <RootContainer maxWidth="lg">
-      <Header variant="h3">Virtual Try-On Experience</Header>
-      
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="body1" align="center" color="textSecondary" sx={{ maxWidth: 800, mx: 'auto' }}>
-          Experience our cutting-edge virtual try-on technology. Upload your photo, select a garment, and see how it looks on you instantly!
-        </Typography>
+  // Add refs for animations
+  const productCardsRef = useRef([]);
+  const tryOnButtonRef = useRef(null);
+  const pageContentRef = useRef(null);
+  const sectionRefs = useRef([]);
+  const modelImageRef = useRef(null);
+  const clothImageRef = useRef(null);
+  const resultImageRef = useRef(null);
+  
+  // Add animation effect on component mount
+  useEffect(() => {
+    // Animate page content
+    if (pageContentRef.current) {
+      fadeIn(pageContentRef.current.children);
+    }
+    
+    // Animate product cards when they're loaded and visible
+    if (!isPreloading && productCardsRef.current.length > 0) {
+      animateProductCards(productCardsRef.current);
+    }
+    
+    // Create scroll reveal for sections
+    if (sectionRefs.current.length > 0) {
+      createScrollReveal(sectionRefs.current);
+    }
+  }, [isPreloading]);
+  
+  // Add animation when model image is uploaded
+  useEffect(() => {
+    if (modelImage && modelImageRef.current) {
+      gsap.fromTo(
+        modelImageRef.current,
+        { scale: 0.9, opacity: 0 },
+        { 
+          scale: 1, 
+          opacity: 1, 
+          duration: 0.5, 
+          ease: "back.out(1.7)"
+        }
+      );
+    }
+  }, [modelImage]);
+  
+  // Add animation when cloth image is selected/uploaded
+  useEffect(() => {
+    if (clothImage && clothImageRef.current) {
+      gsap.fromTo(
+        clothImageRef.current,
+        { scale: 0.9, opacity: 0 },
+        { 
+          scale: 1, 
+          opacity: 1, 
+          duration: 0.5, 
+          ease: "back.out(1.7)"
+        }
+      );
+    }
+  }, [clothImage]);
+  
+  // Add animation when result image appears
+  useEffect(() => {
+    if (resultImage && resultImageRef.current) {
+      gsap.fromTo(
+        resultImageRef.current,
+        { scale: 0.8, opacity: 0 },
+        { 
+          scale: 1, 
+          opacity: 1, 
+          duration: 0.8, 
+          ease: "elastic.out(1, 0.5)"
+        }
+      );
+    }
+  }, [resultImage]);
+  
+  // Handle button animation
+  const handleTryOnButtonClick = (e, item) => {
+    e.stopPropagation();
+    
+    // Animate the button
+    animateTryOnButton(e.currentTarget);
+    
+    // Then execute the product selection
+    setTimeout(() => {
+      handleProductSelect(item);
+    }, 300);
+  };
+  
+  // Handle button hover animations
+  const handleButtonEnter = (e) => {
+    buttonEnter(e.currentTarget);
+  };
+  
+  const handleButtonLeave = (e) => {
+    buttonLeave(e.currentTarget);
+  };
+  
+  // Update the image renderers to include refs
+  const renderUploadedImage = (image, type) => {
+    if (!image) return null;
+    
+    const previewUrl = typeof image === 'object' ? image.previewUrl : image;
+    
+    return (
+      <Box
+        ref={type === 'model' ? modelImageRef : type === 'cloth' ? clothImageRef : resultImageRef}
+        sx={{
+          mt: 2,
+          borderRadius: '8px',
+          overflow: 'hidden',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          position: 'relative',
+        }}
+      >
+        <img
+          src={previewUrl}
+          alt={`${type} preview`}
+          style={{
+            width: '100%',
+            height: 'auto',
+            display: 'block',
+            maxHeight: '500px',
+            objectFit: 'contain',
+          }}
+        />
       </Box>
-      
-      <Grid container spacing={4}>
-        <Grid item xs={12} md={8}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              p: 3, 
-              borderRadius: 2, 
-              border: '1px solid rgba(0, 0, 0, 0.08)',
-              background: 'linear-gradient(to bottom, #ffffff, #f9f9f9)',
-            }}
-          >
-            <Grid container spacing={3}>
-              <Grid item xs={12}>
-                <SectionTitle variant="h5">
-                  <CheckroomIcon /> Try-On Process
-                </SectionTitle>
-                <Divider sx={{ mb: 3 }} />
-              </Grid>
-              
-              <Grid item xs={12} sm={6}>
-                <UploadSection>
-                  <SectionTitle variant="h6">Upload Your Photo</SectionTitle>
-                  <ImageUploader
-                    onUpload={handleModelUpload}
-                    imageUrl={modelImage}
-                    accept="image/*"
-                    maxSize={5 * 1024 * 1024} // 5MB
-                    label="Upload Your Photo"
+    );
+  };
+
+  // Render the product cards, but ensure we show something during loading
+  const renderProductCards = () => {
+    if (isPreloading) {
+      return (
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          flexDirection: 'column', 
+          p: 4 
+        }}>
+          <CircularProgress color="secondary" />
+          <Typography sx={{ mt: 2 }}>Loading products...</Typography>
+        </Box>
+      );
+    }
+    
+    if (filteredProducts.length === 0) {
+      return (
+        <Box sx={{ p: 4, textAlign: 'center' }}>
+          <Typography>No products found in this category.</Typography>
+        </Box>
+      );
+    }
+    
+    return (
+      <Grid container spacing={2}>
+        {filteredProducts.map((product, index) => (
+          <Grid item xs={6} sm={4} md={3} key={product.id}>
+            <StyledCard 
+              onClick={() => handleProductSelect(product)}
+              ref={el => {
+                if (el && !productCardsRef.current.includes(el)) {
+                  productCardsRef.current.push(el);
+                }
+              }}
+              sx={{ cursor: 'pointer' }}
+            >
+              <Box sx={{ position: 'relative' }}>
+                <ProductImage
+                  image={product.image}
+                  title={product.name}
+                />
+                <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                  <CategoryChip
+                    label={product.category}
+                    size="small"
+                    category={product.category}
                   />
-                </UploadSection>
-              </Grid>
-              
-              <Grid item xs={12} sm={6}>
-                <UploadSection>
-                  <SectionTitle variant="h6">Upload Clothing Item</SectionTitle>
-                  <ImageUploader
-                    onUpload={handleClothUpload}
-                    imageUrl={clothImage}
-                    accept="image/*"
-                    maxSize={5 * 1024 * 1024} // 5MB
-                    label="Upload Clothing"
-                  />
-                </UploadSection>
-              </Grid>
-              
-              <Grid item xs={12}>
-                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: 'center', gap: 2, mt: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <FormControl sx={{ minWidth: 200 }}>
-                      <InputLabel id="clothing-category-label">Clothing Category</InputLabel>
-                      <Select
-                        labelId="clothing-category-label"
-                        value={clothingCategory}
-                        label="Clothing Category"
-                        onChange={(e) => setClothingCategory(e.target.value)}
-                      >
-                        <MenuItem value="Upper body">Upper Body</MenuItem>
-                        <MenuItem value="Lower body">Lower Body</MenuItem>
-                        <MenuItem value="Dress">Full Dress</MenuItem>
-                      </Select>
-                    </FormControl>
-                    
-                    <Tooltip title="Use our enhanced AI-powered virtual try-on for more realistic results">
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={useSegmind}
-                            onChange={(e) => setUseSegmind(e.target.checked)}
-                            color="primary"
-                          />
-                        }
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            <Typography variant="body2" sx={{ mr: 0.5 }}>Use AI Engine</Typography>
-                            {useSegmind && (
-                              <Chip 
-                                size="small" 
-                                color="secondary" 
-                                label="Enhanced" 
-                                sx={{ height: 20, fontSize: '0.7rem' }} 
-                              />
-                            )}
-                          </Box>
-                        }
-                      />
-                    </Tooltip>
-                  </Box>
-                  
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleTryOn}
-                    disabled={loading || !modelImage || !clothImage}
-                    startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <CheckroomIcon />}
-                    sx={{ minWidth: 150 }}
-                  >
-                    {loading ? 'Processing...' : 'Try It On'}
-                  </Button>
                 </Box>
-              </Grid>
-              
-              {error && (
-                <Grid item xs={12}>
-                  <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
-                </Grid>
-              )}
-              
-              {loading && (
-                <Grid item xs={12}>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', my: 4 }}>
-                    <CircularProgress size={60} sx={{ mb: 2 }} />
-                    <Typography variant="h6" color="primary" sx={{ mb: 1 }}>
-                      {useSegmind ? 'AI Engine Processing...' : 'Processing Your Request...'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {useSegmind 
-                        ? 'Our AI is working to create a realistic virtual try-on. This may take a few moments.' 
-                        : 'Creating your virtual try-on. This will only take a moment.'}
-                    </Typography>
+              </Box>
+              <CardContent>
+                <Typography variant="subtitle1" gutterBottom noWrap>
+                  {product.name}
+                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="body2" color="primary" fontWeight="bold">
+                    ${product.price.toFixed(2)}
+                  </Typography>
+                  <Box>
+                    <IconButton 
+                      size="small" 
+                      color="secondary"
+                      onClick={(e) => handleAddToWishlist(product, e)}
+                    >
+                      <FavoriteIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton 
+                      size="small" 
+                      color="primary"
+                      onClick={(e) => handleAddToCart(product, e)}
+                    >
+                      <ShoppingCartIcon fontSize="small" />
+                    </IconButton>
                   </Box>
-                </Grid>
-              )}
-              
-              {processingTime && !loading && (
-                <Grid item xs={12}>
-                  <Alert 
-                    severity="info" 
-                    sx={{ mt: 2 }}
-                    icon={useSegmind ? <CheckroomIcon /> : undefined}
-                  >
-                    <AlertTitle>{useSegmind ? 'AI Processing Complete' : 'Processing Complete'}</AlertTitle>
-                    Completed in {processingTime.toFixed(2)} seconds
-                    {useSegmind && ' using our enhanced AI engine'}
-                  </Alert>
-                </Grid>
-              )}
-            </Grid>
-          </Paper>
-          
-          {resultImage && (
-            <Box sx={{ mt: 4 }}>
-              <ResultViewer imageUrl={resultImage} />
-            </Box>
-          )}
+                </Box>
+              </CardContent>
+            </StyledCard>
+          </Grid>
+        ))}
+      </Grid>
+    );
+  };
+
+  // Add effect to filter products when tab changes
+  useEffect(() => {
+    // Update category filter based on tab
+    if (tabValue === 0) setCategoryFilter('all');
+    else if (tabValue === 1) setCategoryFilter('Upper body');
+    else if (tabValue === 2) setCategoryFilter('Lower body');
+    else if (tabValue === 3) setCategoryFilter('Dress');
+  }, [tabValue]);
+
+  return (
+    <RootContainer maxWidth="xl" ref={pageContentRef}>
+      <Header variant="h3" component="h1">
+        Virtual Try-On Experience
+      </Header>
+      
+      {error && (
+        <Alert severity="error" sx={{ mb: 3, animation: 'fadeIn 0.5s' }}>
+          <AlertTitle>Error</AlertTitle>
+          {error}
+        </Alert>
+      )}
+      
+      <Grid container spacing={3}>
+        <Grid item xs={12} md={4}>
+          <UploadSection elevation={2}>
+            <SectionTitle variant="h5">
+              <CategoryIcon sx={{ color: 'primary.main' }} />
+              Upload Your Photo
+            </SectionTitle>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Upload a photo of yourself in a neutral pose against a simple background for best results.
+            </Typography>
+            <ImageUploader
+              onUpload={handleModelUpload}
+              imageUrl={modelImage?.previewUrl || modelImage}
+              accept="image/*"
+              maxSize={5 * 1024 * 1024} // 5MB
+              label="Upload Your Photo"
+              ref={modelImageRef}
+            />
+          </UploadSection>
         </Grid>
         
         <Grid item xs={12} md={4}>
-          <Paper 
-            elevation={0} 
-            sx={{ 
-              p: 3, 
-              borderRadius: 2, 
-              height: '100%',
-              border: '1px solid rgba(0, 0, 0, 0.08)',
-              background: 'linear-gradient(to bottom, #ffffff, #f9f9f9)',
-            }}
-          >
+          <UploadSection elevation={2} id="cloth-upload-section">
             <SectionTitle variant="h5">
-              <CategoryIcon /> Select a Product
+              <CheckroomIcon sx={{ color: 'primary.main' }} />
+              Select Clothing Item
             </SectionTitle>
-            <Divider sx={{ mb: 3 }} />
-            
-            <Box sx={{ mb: 3 }}>
-              <Tabs
-                value={tabValue}
-                onChange={handleTabChange}
-                variant="scrollable"
-                scrollButtons="auto"
-                sx={{ borderBottom: 1, borderColor: 'divider' }}
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Upload a clothing item or select from our recommended items below.
+            </Typography>
+            <ImageUploader
+              onUpload={handleClothUpload}
+              imageUrl={clothImage?.previewUrl || clothImage}
+              accept="image/*"
+              maxSize={5 * 1024 * 1024} // 5MB
+              label="Upload Clothing"
+              selectedProductName={selectedProduct?.name}
+              ref={clothImageRef}
+            />
+          </UploadSection>
+        </Grid>
+        
+        <Grid item xs={12} md={4}>
+          <UploadSection elevation={2}>
+            <SectionTitle variant="h5">Options & Try-On</SectionTitle>
+            <FormControl component="fieldset" sx={{ mt: 2 }}>
+              <FormLabel component="legend">Clothing Category</FormLabel>
+              <RadioGroup
+                aria-label="clothing-category"
+                name="clothing-category"
+                value={clothingCategory}
+                onChange={(e) => setClothingCategory(e.target.value)}
+                row
               >
-                <Tab label="All" />
-                <Tab label="Upper Body" />
-                <Tab label="Lower Body" />
-                <Tab label="Dresses" />
-              </Tabs>
+                <FormControlLabel value="Upper body" control={<Radio />} label="Upper body" />
+                <FormControlLabel value="Lower body" control={<Radio />} label="Lower body" />
+                <FormControlLabel value="Dress" control={<Radio />} label="Dress" />
+              </RadioGroup>
+            </FormControl>
+
+            {/* Add Segmind API Toggle */}
+            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}>
+              <Typography variant="subtitle1" fontWeight="bold">
+                AI Processing Options
+              </Typography>
+              
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={useSegmind}
+                        onChange={(e) => setUseSegmind(e.target.checked)}
+                        disabled={!segmindAvailable}
+                        color="primary"
+                      />
+                    }
+                    label={
+                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                        <Typography variant="body1" fontWeight="medium">Use Segmind AI (Higher Quality)</Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {segmindAvailable 
+                            ? "Enhanced AI processing for realistic results (may take longer)" 
+                            : "Segmind API is unavailable"}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                </Box>
+                <Chip
+                  label={segmindAvailable ? "Available" : "Unavailable"}
+                  color={segmindAvailable ? "success" : "error"}
+                  size="small"
+                  sx={{ fontWeight: 'bold' }}
+                />
+              </Box>
+              
+              {useSegmind && (
+                <Alert severity="info" sx={{ mt: 1 }}>
+                  <AlertTitle>Processing Time</AlertTitle>
+                  Segmind AI processing may take 2-3 minutes. For faster results, disable this option.
+                </Alert>
+              )}
             </Box>
             
-            <Box sx={{ maxHeight: 600, overflow: 'auto', pr: 1 }}>
-              <Grid container spacing={2}>
-                {clothingOptions
-                  .filter(item => {
-                    if (tabValue === 0) return true;
-                    if (tabValue === 1) return item.category === 'Upper body';
-                    if (tabValue === 2) return item.category === 'Lower body';
-                    if (tabValue === 3) return item.category === 'Dress';
-                    return true;
-                  })
-                  .map((item) => (
-                    <Grid item xs={12} key={item.id}>
-                      <StyledCard 
-                        onClick={() => handleProductSelect(item)}
-                        sx={{ 
-                          cursor: 'pointer',
-                          border: selectedProduct?.id === item.id ? '2px solid' : '1px solid',
-                          borderColor: selectedProduct?.id === item.id ? 'primary.main' : 'rgba(0, 0, 0, 0.08)',
-                        }}
-                      >
-                        <ProductImage
-                          image={item.image}
-                          title={item.name}
-                        />
-                        <CardContent sx={{ flexGrow: 1 }}>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                            <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
-                              {item.name}
-                            </Typography>
-                            <CategoryChip
-                              label={item.category}
-                              category={item.category}
-                              size="small"
-                            />
-                          </Box>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                            {item.description}
-                          </Typography>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Typography variant="h6" color="primary" sx={{ fontWeight: 700 }}>
-                              ${item.price.toFixed(2)}
-                            </Typography>
-                            <Box>
-                              <IconButton 
-                                size="small" 
-                                color="primary"
-                                onClick={(e) => handleAddToWishlist(item, e)}
-                              >
-                                <FavoriteIcon />
-                              </IconButton>
-                              <IconButton 
-                                size="small" 
-                                color="primary"
-                                onClick={(e) => handleAddToCart(item, e)}
-                              >
-                                <ShoppingCartIcon />
-                              </IconButton>
-                            </Box>
-                          </Box>
-                        </CardContent>
-                      </StyledCard>
-                    </Grid>
-                  ))}
-              </Grid>
-            </Box>
-          </Paper>
+            <Button
+              variant="contained"
+              color="primary"
+              fullWidth
+              size="large"
+              disabled={loading || !modelImage || !clothImage}
+              onClick={handleTryOn}
+              sx={{ 
+                py: 1.5,
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                position: 'relative',
+                overflow: 'hidden',
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'linear-gradient(45deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%)',
+                  transform: 'translateX(-100%)',
+                  transition: 'transform 0.6s'
+                },
+                '&:hover::after': {
+                  transform: 'translateX(100%)'
+                }
+              }}
+              ref={tryOnButtonRef}
+            >
+              {loading ? (
+                <>
+                  <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                  Processing...
+                </>
+              ) : (
+                'Try On Now'
+              )}
+            </Button>
+            
+            {processingTime && (
+              <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+                Processing time: {processingTime.toFixed(1)} seconds
+              </Typography>
+            )}
+          </UploadSection>
         </Grid>
       </Grid>
+      
+      {resultImage && (
+        <ResultViewer imageUrl={resultImage} ref={resultImageRef} />
+      )}
+      
+      <Box sx={{ mt: 5, mb: 3 }} ref={(el) => (sectionRefs.current[0] = el)}>
+        <SectionTitle variant="h4" sx={{ textAlign: 'center' }}>
+          Recommended Clothing
+        </SectionTitle>
+        <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', mb: 4, maxWidth: 700, mx: 'auto' }}>
+          Click on any item below to try it on virtually. Browse our collection by category.
+        </Typography>
+        
+        <Paper elevation={1} sx={{ p: 0 }}>
+          <Tabs
+            value={tabValue}
+            onChange={handleTabChange}
+            variant="fullWidth"
+            indicatorColor="secondary"
+            textColor="secondary"
+            aria-label="clothing categories"
+            sx={{ mb: 2, borderBottom: '1px solid rgba(0, 0, 0, 0.08)' }}
+          >
+            <Tab label="All Items" />
+            <Tab label="Upper Body" />
+            <Tab label="Lower Body" />
+            <Tab label="Dresses" />
+          </Tabs>
+          
+          <Box sx={{ p: 2 }}>
+            {renderProductCards()}
+          </Box>
+        </Paper>
+      </Box>
     </RootContainer>
   );
 };
