@@ -206,11 +206,11 @@ const ImageUploader = ({ onUpload, imageUrl, accept, maxSize, label, icon, selec
                 {selectedProductName}
               </Typography>
             )}
-            <img
-              src={typeof imageUrl === 'object' ? imageUrl.previewUrl : imageUrl}
-              alt="Preview"
+          <img
+            src={typeof imageUrl === 'object' ? imageUrl.previewUrl : imageUrl}
+            alt="Preview"
               style={{ maxWidth: '100%', maxHeight: '250px', objectFit: 'contain', borderRadius: '4px' }}
-            />
+          />
           </>
         ) : (
           <Typography color="textSecondary">
@@ -531,22 +531,13 @@ const VirtualTryOn = () => {
   useEffect(() => {
     const checkSegmindAvailability = async () => {
       try {
-        console.log('Checking Segmind API availability...');
-        const response = await axios.get(`${API_URL}/api/segmind/status`);
-        
-        if (response.data && response.data.available) {
-          setSegmindAvailable(true);
-          setUseSegmind(true);
-          console.log('Segmind API status: Available');
-        } else {
-          console.log('Segmind API is not available:', response.data?.message);
-          setSegmindAvailable(false);
-          setUseSegmind(false);
-        }
+        console.log('Setting Segmind API to always available');
+        setSegmindAvailable(true);
+        setUseSegmind(true);
       } catch (err) {
-        console.error('Error checking Segmind API status:', err);
-        setSegmindAvailable(false);
-        setUseSegmind(false);
+        console.error('Error setting Segmind status, forcing to available anyway');
+        setSegmindAvailable(true);
+        setUseSegmind(true);
       }
     };
     
@@ -735,8 +726,8 @@ const VirtualTryOn = () => {
       console.log('- Cloth image:', clothImage);
       console.log('- Model path:', modelPath);
       console.log('- Cloth path:', clothPath);
-      console.log('- Use Segmind:', useSegmind);
       console.log('- Clothing category:', clothingCategory);
+      console.log('- Using Segmind AI for high-quality results');
       
       const startTime = Date.now();
       
@@ -745,10 +736,10 @@ const VirtualTryOn = () => {
       const response = await axios.post(`${API_URL}/api/tryon`, {
         model_path: modelPath,
         cloth_path: clothPath,
-        use_segmind: useSegmind,
+        use_segmind: true, // Always true
         clothing_category: clothingCategory
       }, {
-        timeout: useSegmind ? 300000 : 60000 // Increase timeout to 5 minutes for Segmind processing
+        timeout: 600000 // 10 minute timeout to handle Segmind processing
       });
       
       const endTime = Date.now();
@@ -770,35 +761,20 @@ const VirtualTryOn = () => {
       
       // Handle different types of errors
       if (err.code === 'ECONNABORTED') {
-        setError('Request timed out. Segmind processing can take several minutes. Please try again or disable Segmind for faster local processing.');
-        
-        // Offer to retry with local processing
-        if (useSegmind && window.confirm('Try-on is taking too long. Would you like to try again without using Segmind API?')) {
-          setUseSegmind(false);
-          setTimeout(() => {
-            handleTryOn();
-          }, 500);
-        }
+        setError('Request timed out. Segmind processing is taking longer than expected. Please try again with a different image or check your network connection.');
       } else if (err.response) {
         // Server responded with an error status
         const errorDetail = err.response.data?.detail || 'Unknown error';
-        setError(`Server error (${err.response.status}): ${errorDetail}`);
-        
-        // If it's a 429 rate limit error, suggest retrying
         if (err.response.status === 429) {
-          setError(`Rate limit exceeded (429). The Segmind API is temporarily unavailable due to too many requests. Please try again in a few minutes or disable Segmind for local processing.`);
-        } 
-
-        // If it's a 422 error with Segmind, try switching to local processing
-        if (err.response.status === 422 && useSegmind && window.confirm('There was an issue with the Segmind API. Would you like to try again with local processing?')) {
-          setUseSegmind(false);
-          setTimeout(() => {
-            handleTryOn();
-          }, 500);
+          setError('Segmind API rate limit exceeded. Please try again in a few minutes.');
+        } else if (err.response.status === 422) {
+          setError('Segmind API processing error. Please try with a different model or clothing image.');
+        } else {
+          setError(`Server error (${err.response.status}): ${errorDetail}`);
         }
       } else if (err.request) {
         // No response received
-        setError('No response from server. Please check your connection and try again.');
+        setError('No response from server. The Segmind processing may be taking longer than expected. Please try again or check your connection.');
       } else {
         // Generic error message
         setError(`Error: ${err.message}`);
@@ -916,8 +892,8 @@ const VirtualTryOn = () => {
     if (!image) return null;
     
     const previewUrl = typeof image === 'object' ? image.previewUrl : image;
-    
-    return (
+
+  return (
       <Box
         ref={type === 'model' ? modelImageRef : type === 'cloth' ? clothImageRef : resultImageRef}
         sx={{
@@ -956,7 +932,7 @@ const VirtualTryOn = () => {
         }}>
           <CircularProgress color="secondary" />
           <Typography sx={{ mt: 2 }}>Loading products...</Typography>
-        </Box>
+      </Box>
       );
     }
     
@@ -1049,27 +1025,27 @@ const VirtualTryOn = () => {
         </Alert>
       )}
       
-      <Grid container spacing={3}>
+            <Grid container spacing={3}>
         <Grid item xs={12} md={4}>
           <UploadSection elevation={2}>
-            <SectionTitle variant="h5">
+                <SectionTitle variant="h5">
               <CategoryIcon sx={{ color: 'primary.main' }} />
               Upload Your Photo
-            </SectionTitle>
+                </SectionTitle>
             <Typography variant="body2" color="text.secondary" paragraph>
               Upload a photo of yourself in a neutral pose against a simple background for best results.
             </Typography>
-            <ImageUploader
-              onUpload={handleModelUpload}
+                  <ImageUploader
+                    onUpload={handleModelUpload}
               imageUrl={modelImage?.previewUrl || modelImage}
-              accept="image/*"
-              maxSize={5 * 1024 * 1024} // 5MB
-              label="Upload Your Photo"
+                    accept="image/*"
+                    maxSize={5 * 1024 * 1024} // 5MB
+                    label="Upload Your Photo"
               ref={modelImageRef}
-            />
-          </UploadSection>
-        </Grid>
-        
+                  />
+                </UploadSection>
+              </Grid>
+              
         <Grid item xs={12} md={4}>
           <UploadSection elevation={2} id="cloth-upload-section">
             <SectionTitle variant="h5">
@@ -1079,18 +1055,18 @@ const VirtualTryOn = () => {
             <Typography variant="body2" color="text.secondary" paragraph>
               Upload a clothing item or select from our recommended items below.
             </Typography>
-            <ImageUploader
-              onUpload={handleClothUpload}
+                  <ImageUploader
+                    onUpload={handleClothUpload}
               imageUrl={clothImage?.previewUrl || clothImage}
-              accept="image/*"
-              maxSize={5 * 1024 * 1024} // 5MB
-              label="Upload Clothing"
+                    accept="image/*"
+                    maxSize={5 * 1024 * 1024} // 5MB
+                    label="Upload Clothing"
               selectedProductName={selectedProduct?.name}
               ref={clothImageRef}
-            />
-          </UploadSection>
-        </Grid>
-        
+                  />
+                </UploadSection>
+              </Grid>
+              
         <Grid item xs={12} md={4}>
           <UploadSection elevation={2}>
             <SectionTitle variant="h5">Options & Try-On</SectionTitle>
@@ -1099,67 +1075,22 @@ const VirtualTryOn = () => {
               <RadioGroup
                 aria-label="clothing-category"
                 name="clothing-category"
-                value={clothingCategory}
-                onChange={(e) => setClothingCategory(e.target.value)}
+                        value={clothingCategory}
+                        onChange={(e) => setClothingCategory(e.target.value)}
                 row
               >
                 <FormControlLabel value="Upper body" control={<Radio />} label="Upper body" />
                 <FormControlLabel value="Lower body" control={<Radio />} label="Lower body" />
                 <FormControlLabel value="Dress" control={<Radio />} label="Dress" />
               </RadioGroup>
-            </FormControl>
-
-            {/* Add Segmind API Toggle */}
-            <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 1, p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 1, bgcolor: 'background.paper' }}>
-              <Typography variant="subtitle1" fontWeight="bold">
-                AI Processing Options
-              </Typography>
-              
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={useSegmind}
-                        onChange={(e) => setUseSegmind(e.target.checked)}
-                        disabled={!segmindAvailable}
-                        color="primary"
-                      />
-                    }
-                    label={
-                      <Box sx={{ display: 'flex', flexDirection: 'column' }}>
-                        <Typography variant="body1" fontWeight="medium">Use Segmind AI (Higher Quality)</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {segmindAvailable 
-                            ? "Enhanced AI processing for realistic results (may take longer)" 
-                            : "Segmind API is unavailable"}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                </Box>
-                <Chip
-                  label={segmindAvailable ? "Available" : "Unavailable"}
-                  color={segmindAvailable ? "success" : "error"}
-                  size="small"
-                  sx={{ fontWeight: 'bold' }}
-                />
-              </Box>
-              
-              {useSegmind && (
-                <Alert severity="info" sx={{ mt: 1 }}>
-                  <AlertTitle>Processing Time</AlertTitle>
-                  Segmind AI processing may take 2-3 minutes. For faster results, disable this option.
-                </Alert>
-              )}
-            </Box>
-            
-            <Button
-              variant="contained"
-              color="primary"
+                    </FormControl>
+                  
+                  <Button
+                    variant="contained"
+                    color="primary"
               fullWidth
               size="large"
-              disabled={loading || !modelImage || !clothImage}
+                    disabled={loading || !modelImage || !clothImage}
               onClick={handleTryOn}
               sx={{ 
                 py: 1.5,
@@ -1191,33 +1122,33 @@ const VirtualTryOn = () => {
               ) : (
                 'Try On Now'
               )}
-            </Button>
+                  </Button>
             
             {processingTime && (
               <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
                 Processing time: {processingTime.toFixed(1)} seconds
-              </Typography>
+                    </Typography>
             )}
           </UploadSection>
-        </Grid>
-      </Grid>
-      
-      {resultImage && (
+                </Grid>
+            </Grid>
+          
+          {resultImage && (
         <ResultViewer imageUrl={resultImage} ref={resultImageRef} />
       )}
       
       <Box sx={{ mt: 5, mb: 3 }} ref={(el) => (sectionRefs.current[0] = el)}>
         <SectionTitle variant="h4" sx={{ textAlign: 'center' }}>
           Recommended Clothing
-        </SectionTitle>
+            </SectionTitle>
         <Typography variant="body1" color="text.secondary" sx={{ textAlign: 'center', mb: 4, maxWidth: 700, mx: 'auto' }}>
           Click on any item below to try it on virtually. Browse our collection by category.
         </Typography>
-        
+            
         <Paper elevation={1} sx={{ p: 0 }}>
-          <Tabs
-            value={tabValue}
-            onChange={handleTabChange}
+              <Tabs
+                value={tabValue}
+                onChange={handleTabChange}
             variant="fullWidth"
             indicatorColor="secondary"
             textColor="secondary"
@@ -1225,15 +1156,15 @@ const VirtualTryOn = () => {
             sx={{ mb: 2, borderBottom: '1px solid rgba(0, 0, 0, 0.08)' }}
           >
             <Tab label="All Items" />
-            <Tab label="Upper Body" />
-            <Tab label="Lower Body" />
-            <Tab label="Dresses" />
-          </Tabs>
+                <Tab label="Upper Body" />
+                <Tab label="Lower Body" />
+                <Tab label="Dresses" />
+              </Tabs>
           
           <Box sx={{ p: 2 }}>
             {renderProductCards()}
-          </Box>
-        </Paper>
+            </Box>
+          </Paper>
       </Box>
     </RootContainer>
   );

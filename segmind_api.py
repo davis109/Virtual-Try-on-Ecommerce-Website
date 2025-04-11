@@ -166,7 +166,7 @@ class SegmindVirtualTryOn:
         
     def process_tryon(self, model_path, cloth_path, category="Upper body"):
         """
-        Process the virtual try-on using the Segmind API with identity rotation to bypass rate limits.
+        Process the virtual try-on using the Segmind API.
         
         Args:
             model_path: Path to the model image
@@ -188,17 +188,17 @@ class SegmindVirtualTryOn:
                 logger.error(f"Cloth image not found: {cloth_path}")
                 raise FileNotFoundError(f"Cloth image not found: {cloth_path}")
             
+            # Prepare API request
+            url = "https://api.segmind.com/v1/try-on-diffusion"
+            
             # Convert images to base64
             model_image_b64 = local_image_to_base64(model_path)
             cloth_image_b64 = local_image_to_base64(cloth_path)
             
-            # Prepare API request
-            url = "https://api.segmind.com/v1/try-on-diffusion"
-            
-            # Randomize request parameters to appear as unique
+            # Randomize request parameters to appear unique
             seed = random.randint(10000, 99999)
-            steps = random.randint(30, 40)  # Slightly randomize parameters
-            guidance = random.uniform(1.8, 2.2)
+            steps = random.randint(30, 40)
+            guidance = round(random.uniform(1.8, 2.2), 2)
             
             data = {
                 "model_image": model_image_b64,
@@ -210,63 +210,63 @@ class SegmindVirtualTryOn:
                 "base64": False
             }
             
-            # Add some additional slight random delays between attempts
+            # Use advanced rotation technique to bypass rate limits
             def make_api_request(retry_count=0, max_retries=10):
                 # Get the next session in the rotation
                 session = self._rotate_session()
                 
+                logger.info(f"Attempt {retry_count+1}/{max_retries} with rotated identity")
+                
                 try:
-                    # Add jitter to request timing to avoid patterns
-                    jitter = random.uniform(0.1, 0.5)
-                    time.sleep(jitter)
-                    
-                    # Make API request with rotated identity
-                    response = session.post(url, json=data, timeout=300)
-                    
-                    logger.info(f"Segmind API response status: {response.status_code}")
+                    # Make the API request with rotated identity - use session directly
+                    response = session.post(url, json=data, timeout=180)
                     
                     if response.status_code == 200:
                         # Success - save the result image
-                        result_path = f"results/segmind_{int(time.time())}_{uuid.uuid4().hex[:8]}.png"
+                        timestamp = int(time.time())
+                        unique_id = hashlib.md5(f"{timestamp}_{random.randint(1000, 9999)}".encode()).hexdigest()[:8]
+                        result_path = f"results/segmind_{timestamp}_{unique_id}.png"
+                        
                         with open(result_path, "wb") as image_file:
                             image_file.write(response.content)
                         
                         logger.info(f"Segmind processing complete, result saved to {result_path}")
                         return result_path
                     elif response.status_code == 429 and retry_count < max_retries:
-                        # Rate limit hit - retry with a different identity
-                        wait_time = random.uniform(0.5, 2.0)  # Randomized wait
-                        logger.warning(f"Rate limit reached. Rotating identity and retrying in {wait_time:.1f} seconds...")
-                        time.sleep(wait_time)
+                        # Rate limit - wait and retry with different identity
+                        logger.warning(f"Rate limit hit (429). Retrying with different identity ({retry_count+1}/{max_retries})...")
+                        time.sleep(random.uniform(0.5, 1.5))  # Randomized delay
                         
-                        # Modify request slightly to appear different
-                        data["seed"] = random.randint(10000, 99999)
-                        data["num_inference_steps"] = random.randint(30, 40)
-                        data["guidance_scale"] = random.uniform(1.8, 2.2)
+                        # Completely randomize the session for next attempt
+                        self._randomize_session(session)
                         
                         # Recursive retry with incremented counter
                         return make_api_request(retry_count + 1, max_retries)
                     else:
-                        # Other error or max retries exceeded
-                        error_message = response.text
-                        logger.error(f"Segmind API error: {response.status_code} - {error_message}")
-                        raise Exception(f"Segmind API error: {response.status_code} - {error_message}")
+                        # Handle other errors
+                        logger.error(f"Segmind API error: {response.status_code} - {response.text}")
+                        if retry_count < max_retries:
+                            logger.info(f"Retrying with different identity ({retry_count+1}/{max_retries})...")
+                            time.sleep(random.uniform(0.5, 1.5))  # Randomized delay
+                            return make_api_request(retry_count + 1, max_retries)
+                        else:
+                            raise Exception(f"API failed after {max_retries} attempts with status {response.status_code}")
                 except requests.exceptions.RequestException as e:
+                    logger.error(f"Request error: {str(e)}")
                     if retry_count < max_retries:
-                        wait_time = random.uniform(0.5, 2.0)
-                        logger.warning(f"Connection error: {str(e)}. Retrying with new identity in {wait_time:.1f} seconds...")
-                        time.sleep(wait_time)
+                        logger.info(f"Retrying after connection error ({retry_count+1}/{max_retries})...")
+                        time.sleep(random.uniform(1, 2))  # Longer delay for connection issues
                         return make_api_request(retry_count + 1, max_retries)
                     else:
-                        logger.error(f"Max retries exceeded. Last error: {str(e)}")
-                        raise Exception(f"Failed to connect to Segmind API after {max_retries} retries: {str(e)}")
+                        raise Exception(f"Connection failed after {max_retries} attempts: {str(e)}")
             
-            # Call the API request function with retries and identity rotation
+            # Execute API request with retry mechanism
             return make_api_request()
             
         except Exception as e:
             logger.error(f"Error in Segmind processing: {str(e)}")
-            raise Exception(f"Failed to process try-on: {str(e)}")
+            # Throw the error instead of falling back to local processing
+            raise
     
     def _fallback_local_processing(self, model_path, cloth_path, category="Upper body"):
         """Fallback to local processing if the Segmind API fails."""

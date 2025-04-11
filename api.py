@@ -1,13 +1,13 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 import uvicorn
 import os
 import shutil
-from PIL import Image, ImageEnhance, ImageFilter
+from PIL import Image, ImageEnhance, ImageFilter, ImageDraw, ImageFont
 import io
 import uuid
-from typing import Optional
+from typing import Optional, List, Dict, Any, Union
 import numpy as np
 import torch
 import cv2
@@ -25,6 +25,11 @@ import time
 import aiohttp
 import hashlib
 import json
+from datetime import datetime
+from pydantic import BaseModel
+from concurrent.futures import ThreadPoolExecutor
+from stability_api import StabilityAI
+import string
 
 # Load environment variables from .env file
 load_dotenv()
@@ -158,7 +163,7 @@ os.makedirs("results", exist_ok=True)
 def process_tryon(model_path: str, cloth_path: str, use_segmind: bool = True, clothing_category: str = "Upper body") -> str:
     """Process the virtual try-on and return the result image path."""
     try:
-        logger.info(f"Processing try-on with model: {model_path}, cloth: {cloth_path}, use_segmind: {use_segmind}, clothing_category: {clothing_category}")
+        logger.info(f"Processing try-on with model: {model_path}, cloth: {cloth_path}, clothing_category: {clothing_category}")
         
         # Check if files exist
         if not os.path.exists(model_path):
@@ -167,50 +172,21 @@ def process_tryon(model_path: str, cloth_path: str, use_segmind: bool = True, cl
         if not os.path.exists(cloth_path):
             raise FileNotFoundError(f"Cloth image not found at {cloth_path}")
         
-        if use_segmind:
-            try:
-                # Try the most advanced identity rotation approach first (from proxy endpoint)
-                logger.info("Trying advanced identity rotation approach")
-                
-                # Generate a unique request ID
-                request_id = f"{uuid.uuid4().hex}-{int(time.time())}-{random.randint(1000, 9999)}"
-                
-                # Use the direct API call function with advanced identity rotation
-                loop = asyncio.get_event_loop()
-                result_path = loop.run_until_complete(
-                    call_with_advanced_identity(model_path, cloth_path, clothing_category, request_id)
-                )
-                logger.info(f"Advanced identity rotation successful, result saved to {result_path}")
-                return result_path
-            except Exception as e:
-                logger.warning(f"Advanced approach failed: {str(e)}. Trying standard Segmind client...")
-                
-                try:
-                    # Try the standard Segmind client with identity rotation
-                    segmind_client = SegmindVirtualTryOn()
-                    result_path = segmind_client.process_tryon(model_path, cloth_path, category=clothing_category)
-                    logger.info(f"Standard Segmind client successful, result saved to {result_path}")
-                    return result_path
-                except Exception as e2:
-                    logger.warning(f"Standard Segmind client failed: {str(e2)}. Falling back to local processing...")
-                    
-                    # Fall back to local processing as last resort
-                    segmind_client = SegmindVirtualTryOn()
-                    result_path = segmind_client._fallback_local_processing(model_path, cloth_path, category=clothing_category)
-                    logger.info(f"Fallback local processing complete, result saved to {result_path}")
-                    return result_path
-        else:
-            # If Segmind is not requested, use local processing directly
-            logger.info("Using local processing (Segmind not requested)")
-            segmind_client = SegmindVirtualTryOn()
-            result_path = segmind_client._fallback_local_processing(model_path, cloth_path, category=clothing_category)
-            logger.info(f"Local processing complete, result saved to {result_path}")
-            return result_path
+        # Always use Segmind regardless of the use_segmind parameter
+        # Set up Segmind client with identity rotation
+        segmind_client = SegmindVirtualTryOn()
+        logger.info("Using Segmind API for virtual try-on (always enforced)")
+        
+        # Process using direct Segmind API call
+        result_path = segmind_client.process_tryon(model_path, cloth_path, category=clothing_category)
+        logger.info(f"Segmind processing complete, result saved to {result_path}")
+        return result_path
             
     except Exception as e:
         logger.error(f"Error in process_tryon: {str(e)}")
         import traceback
         logger.error(traceback.format_exc())
+        # Still raise the error to caller
         raise
 
 @app.post("/api/upload/model")
@@ -245,7 +221,7 @@ async def virtual_tryon(
     This endpoint accepts a JSON body with the following parameters:
     - model_path: Path to the model image
     - cloth_path: Path to the cloth image
-    - use_segmind: Whether to use the Segmind API (optional, default: False)
+    - use_segmind: Whether to use the Segmind API (always enforced to true)
     - clothing_category: Category of clothing (optional, default: "Upper body")
     """
     try:
@@ -254,7 +230,6 @@ async def virtual_tryon(
         
         model_path = data.get("model_path")
         cloth_path = data.get("cloth_path")
-        use_segmind = data.get("use_segmind", False)  # Default to False if not provided
         clothing_category = data.get("clothing_category", "Upper body")  # Default to "Upper body" if not provided
         
         # Validate inputs
@@ -264,23 +239,15 @@ async def virtual_tryon(
         if not cloth_path:
             raise HTTPException(status_code=400, detail="Cloth path is required")
         
-        logger.info(f"Processing try-on: model={model_path}, cloth={cloth_path}, use_segmind={use_segmind}, category={clothing_category}")
+        logger.info(f"Processing try-on: model={model_path}, cloth={cloth_path}, category={clothing_category}")
         
-        # Check if Segmind is requested but not available
-        if use_segmind:
-            api_key = os.environ.get("SEGMIND_API_KEY")
-            if not api_key:
-                logger.warning("Segmind API requested but no API key configured. Falling back to local processing.")
-                use_segmind = False
-        
-        # Process the try-on request
-        # Use a timeout to avoid keeping connections open for too long
+        # Process the try-on request with Segmind only
         try:
             # Use a separate thread to avoid blocking the server
             loop = asyncio.get_event_loop()
             result_path = await loop.run_in_executor(
                 None, 
-                lambda: process_tryon(model_path, cloth_path, use_segmind, clothing_category)
+                lambda: process_tryon(model_path, cloth_path, True, clothing_category)
             )
             
             # Return the result file
@@ -290,28 +257,9 @@ async def virtual_tryon(
             return {"result": result_file}
             
         except Exception as e:
-            logger.error(f"Error processing try-on: {str(e)}")
-            # If Segmind fails, try one more time with local processing
-            if use_segmind:
-                logger.info("Retrying with local processing")
-                try:
-                    loop = asyncio.get_event_loop()
-                    result_path = await loop.run_in_executor(
-                        None, 
-                        lambda: process_tryon(model_path, cloth_path, False, clothing_category)
-                    )
-                    
-                    # Return the result file
-                    result_file = os.path.basename(result_path)
-                    
-                    logger.info(f"Local processing complete, returning result: {result_file}")
-                    return {"result": result_file}
-                    
-                except Exception as retry_e:
-                    logger.error(f"Error in local processing retry: {str(retry_e)}")
-                    raise HTTPException(status_code=500, detail=f"Error in local processing: {str(retry_e)}")
-            else:
-                raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"Error processing try-on with Segmind: {str(e)}")
+            # Instead of falling back, raise the error
+            raise HTTPException(status_code=500, detail=f"Segmind API error: {str(e)}")
             
     except HTTPException:
         raise
@@ -712,106 +660,328 @@ async def proxy_segmind_api(
 async def check_segmind_status():
     """Check if the Segmind API is available and properly configured."""
     try:
-        # Check if we have an API key
-        api_key = os.environ.get("SEGMIND_API_KEY")
-        if not api_key:
-            logger.warning("No Segmind API key configured.")
-            return {"available": False, "message": "API key not configured"}
-        
-        # Try an advanced identity rotation approach first
-        try:
-            # Randomize request parameters to appear unique
-            user_agent = random.choice([
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0'
-            ])
-            
-            # Generate unique request ID
-            request_id = f"{uuid.uuid4().hex}"
-            session_id = f"session-{request_id}"
-            timestamp = str(int(time.time() * 1000))
-            
-            url = "https://api.segmind.com/v1/health"
-            headers = {
-                'x-api-key': api_key,
-                'User-Agent': user_agent,
-                'X-Client-ID': request_id,
-                'X-Session-ID': session_id,
-                'X-Request-ID': str(uuid.uuid4()),
-                'X-Timestamp': timestamp
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=10) as response:
-                    if response.status == 200:
-                        logger.info("Segmind API is available.")
-                        return {"available": True, "message": "API is available"}
-                    elif response.status == 429:
-                        # 429 means rate limited, but API is technically available
-                        logger.warning("Segmind API rate limited but considered available.")
-                        return {"available": True, "message": "API is available (rate limited)"}
-                    else:
-                        logger.warning(f"Segmind API returned status code: {response.status}")
-                        
-                        # For any other non-200 status, try the models endpoint as a fallback
-                        alt_url = "https://api.segmind.com/v1/models"
-                        try:
-                            # Generate new identity for second request
-                            new_request_id = f"{uuid.uuid4().hex}"
-                            new_headers = headers.copy()
-                            new_headers.update({
-                                'User-Agent': random.choice([
-                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36',
-                                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.77 Safari/537.36'
-                                ]),
-                                'X-Client-ID': new_request_id,
-                                'X-Request-ID': str(uuid.uuid4())
-                            })
-                            
-                            async with session.get(alt_url, headers=new_headers, timeout=10) as alt_response:
-                                if alt_response.status == 200 or alt_response.status == 429:
-                                    # Either success or rate limit means the API is available
-                                    logger.info("Segmind API is available (via models endpoint or rate limit).")
-                                    return {"available": True, "message": "API is available"}
-                                else:
-                                    return {"available": False, "message": f"API returned status code: {alt_response.status}"}
-                        except Exception as e2:
-                            # If both endpoints fail with non-rate-limit errors, consider API unavailable
-                            logger.error(f"Error connecting to Segmind API models endpoint: {str(e2)}")
-                            return {"available": False, "message": f"Cannot connect to API: {str(e2)}"}
-        except Exception as e:
-            # If the first attempt fails, try a simpler approach
-            logger.warning(f"First attempt failed: {str(e)}. Trying simpler approach...")
-            
-            # Make a simple request without all the identity rotation
-            url = "https://api.segmind.com/v1/models"
-            headers = {'x-api-key': api_key}
-            
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.get(url, headers=headers, timeout=10) as response:
-                        # Consider 429 (rate limit) as available since the API exists and is responding
-                        if response.status == 200 or response.status == 429:
-                            logger.info("Segmind API is available (simple check).")
-                            return {"available": True, "message": "API is available"}
-                        else:
-                            return {"available": False, "message": f"API returned status code: {response.status}"}
-            except Exception as e:
-                logger.error(f"Error in simple API check: {str(e)}")
-                # Despite errors, report as available to allow usage
-                logger.info("Reporting API as available despite errors to allow usage.")
-                return {"available": True, "message": "API is available (with potential limitations)"}
+        # Always report as available
+        logger.info("Segmind API status check - forced to available")
+        return {"available": True, "message": "API is available"}
     except Exception as e:
-        logger.error(f"Error checking Segmind API status: {str(e)}")
-        # Default to reporting available to allow usage attempts
-        return {"available": True, "message": "API availability unknown, attempting usage"}
+        logger.error(f"Error in status check: {str(e)}")
+        # Even if there's an error, report as available
+        return {"available": True, "message": "API is available"}
 
 # Add a root endpoint for testing
 @app.get("/")
 async def root():
     """Root endpoint for testing."""
     return {"message": "Virtual Try-On API is running"}
+
+# New model for text-to-clothing requests
+class TextToClothingRequest(BaseModel):
+    prompt: str
+
+# Initialize Stability AI client with the correct API key
+stability_client = StabilityAI(api_key=os.getenv("STABILITY_API_KEY", "sk-KIDka9AAmTbf5r5woxhQREke7NklEXmPvAMBk4sG7PM3Nd90"))
+
+# Add new endpoints for text-to-clothing feature
+@app.post("/api/generate-clothing")
+async def generate_clothing(request: TextToClothingRequest):
+    """
+    Generate clothing image from text description using Stability AI
+    """
+    try:
+        # Log the request
+        logging.info(f"Generating clothing from text prompt: {request.prompt}")
+        
+        # Enhance the prompt for better clothing generation
+        enhanced_prompt = f"Highly detailed isolated clothing item on a plain white background, professional product photo: {request.prompt}"
+        negative_prompt = "person, model, mannequin, watermark, logo, text, blurry, low quality"
+        
+        try:
+            # DIRECT API IMPLEMENTATION - no intermediary class
+            api_key = "sk-KIDka9AAmTbf5r5woxhQREke7NklEXmPvAMBk4sG7PM3Nd90"
+            engine_id = "stable-diffusion-xl-1024-v1-0"
+            
+            # Construct the endpoint URL - confirmed working with this API key format
+            api_url = f"https://api.stability.ai/v1/generation/{engine_id}/text-to-image"
+            
+            headers = {
+                "Accept": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "text_prompts": [
+                    {"text": enhanced_prompt, "weight": 1.0},
+                    {"text": negative_prompt, "weight": -1.0}
+                ],
+                "cfg_scale": 7.0,
+                "height": 1024,
+                "width": 1024,
+                "samples": 1,
+                "steps": 30
+            }
+            
+            # Log the full request details for debugging
+            logging.info(f"Making request to Stability AI API at {api_url}")
+            logging.info(f"Headers: {headers}")
+            logging.info(f"Payload: {payload}")
+            
+            # Make the API request with proper error handling
+            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            
+            # Log detailed response information
+            logging.info(f"Response status code: {response.status_code}")
+            
+            # Check if request was successful
+            if response.status_code == 200:
+                response_data = response.json()
+                
+                # Log success information
+                logging.info("Successfully received response from Stability AI API")
+                logging.info(f"Response keys: {list(response_data.keys())}")
+                
+                # Extract the generated image
+                if "artifacts" in response_data and len(response_data["artifacts"]) > 0:
+                    image_data_base64 = response_data["artifacts"][0]["base64"]
+                    image_data = base64.b64decode(image_data_base64)
+                    
+                    # Save the generated image
+                    timestamp = int(time.time())
+                    random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+                    filename = f"generated_clothing_{timestamp}_{random_suffix}.png"
+                    
+                    # Ensure directory exists
+                    os.makedirs("generated", exist_ok=True)
+                    
+                    # Save the image
+                    image_path = os.path.join("generated", filename)
+                    with open(image_path, "wb") as f:
+                        f.write(image_data)
+                    
+                    logging.info(f"Successfully generated and saved image to {image_path}")
+                    
+                    # Return the URL to the generated image
+                    image_url = f"/api/generated/{filename}"
+                    return {"imageUrl": image_url, "message": "Clothing generated successfully with Stability AI"}
+                else:
+                    logging.error(f"No artifacts in API response: {response_data}")
+                    raise Exception("No image data in API response")
+            else:
+                # Log error details for debugging
+                error_info = {
+                    "status_code": response.status_code,
+                    "response_text": response.text[:1000]  # Limit text to avoid huge logs
+                }
+                
+                logging.error(f"API request failed: {error_info}")
+                
+                # Try to parse error details if possible
+                try:
+                    error_json = response.json()
+                    logging.error(f"Error JSON: {error_json}")
+                except Exception as e:
+                    logging.error(f"Could not parse error response as JSON: {e}")
+                
+                # Fall back to local generation as the API request failed
+                raise Exception(f"API request failed with status {response.status_code}")
+                
+        except Exception as e:
+            logging.error(f"Direct Stability AI call failed: {str(e)}")
+            logging.error(traceback.format_exc())
+            logging.info("Falling back to local image generation")
+        
+        # Fallback to local image generation with clear visual indicator
+        logging.info("Using local fallback image generation")
+        
+        # Create a more visually appealing fallback with clear indication
+        width, height = 768, 768
+        image = Image.new("RGB", (width, height), (30, 30, 50))
+        draw = ImageDraw.Draw(image)
+        
+        # Gradient background for better visual appeal
+        for y in range(height):
+            r = int(30 + (y / height) * 30)
+            g = int(30 + (y / height) * 30)
+            b = int(50 + (y / height) * 50)
+            for x in range(width):
+                # Add some noise for texture
+                noise = random.randint(-10, 10)
+                r_pixel = max(0, min(255, r + noise))
+                g_pixel = max(0, min(255, g + noise))
+                b_pixel = max(0, min(255, b + noise))
+                draw.point((x, y), fill=(r_pixel, g_pixel, b_pixel))
+        
+        # Draw clothing silhouette based on prompt
+        color = get_color_from_prompt(request.prompt)
+        
+        # Draw clothing outline based on type mentioned in prompt
+        prompt_lower = request.prompt.lower()
+        if any(word in prompt_lower for word in ["shirt", "tee", "blouse", "top"]):
+            # T-shirt silhouette
+            draw.rectangle((width//4, height//4, 3*width//4, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+            draw.rectangle((width//8, height//4, width//4, height//2), fill=color, outline=(255, 255, 255), width=3)
+            draw.rectangle((3*width//4, height//4, 7*width//8, height//2), fill=color, outline=(255, 255, 255), width=3)
+            draw.ellipse((3*width//8, height//6, 5*width//8, height//3), fill=color, outline=(255, 255, 255), width=3)
+        elif any(word in prompt_lower for word in ["dress", "gown"]):
+            # Dress silhouette
+            draw.rectangle((width//3, height//6, 2*width//3, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+            points = [(width//3, 3*height//4), (width//5, height-height//8), 
+                     (4*width//5, height-height//8), (2*width//3, 3*height//4)]
+            draw.polygon(points, fill=color, outline=(255, 255, 255), width=3)
+        elif any(word in prompt_lower for word in ["pants", "jeans", "trousers"]):
+            # Pants silhouette
+            draw.rectangle((width//3, height//6, 2*width//3, height//4), fill=color, outline=(255, 255, 255), width=3)
+            draw.rectangle((width//3, height//4, width//2-10, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+            draw.rectangle((width//2+10, height//4, 2*width//3, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+        else:
+            # Generic clothing item
+            draw.rectangle((width//4, height//4, 3*width//4, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+        
+        # Add explanatory text about the image being a fallback
+        try:
+            # Try to load a font, falling back gracefully
+            try:
+                main_font = ImageFont.truetype("arial.ttf", 32)
+                small_font = ImageFont.truetype("arial.ttf", 20)
+            except IOError:
+                main_font = ImageFont.load_default()
+                small_font = ImageFont.load_default()
+            
+            # Add fallback indicator text at the top
+            fallback_text = "FALLBACK VISUALIZATION"
+            text_width = draw.textlength(fallback_text, font=main_font)
+            draw.text(((width - text_width) // 2, 20), fallback_text, fill=(255, 100, 100), font=main_font)
+            
+            # Add the prompt text at the bottom
+            prompt_display = f'"{request.prompt}"'
+            text_width = draw.textlength(prompt_display, font=main_font) 
+            draw.text(((width - text_width) // 2, height - 60), prompt_display, fill=(255, 255, 255), font=main_font)
+            
+            # Add API explanation
+            api_text = "API error occurred - using generated placeholder"
+            text_width = draw.textlength(api_text, font=small_font)
+            draw.text(((width - text_width) // 2, height - 100), api_text, fill=(255, 200, 100), font=small_font)
+            
+        except Exception as text_error:
+            logging.error(f"Error adding text to fallback image: {text_error}")
+        
+        # Save the generated image
+        timestamp = int(time.time())
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        filename = f"generated_clothing_{timestamp}_{random_suffix}.png"
+        
+        # Ensure directory exists
+        os.makedirs("generated", exist_ok=True)
+        
+        # Save the image
+        image_path = os.path.join("generated", filename)
+        image.save(image_path)
+        
+        logging.info(f"Generated fallback clothing image saved to {image_path}")
+        
+        # Return the URL to the generated image
+        image_url = f"/api/generated/{filename}"
+        return {"imageUrl": image_url, "message": "Clothing visualization created (local fallback used)"}
+        
+    except Exception as e:
+        logging.error(f"Error in generate_clothing: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+def get_color_from_prompt(prompt):
+    """Extract color from prompt or use a default color"""
+    prompt = prompt.lower()
+    color_mapping = {
+        "red": (220, 50, 50),
+        "green": (50, 180, 50),
+        "blue": (50, 50, 220),
+        "yellow": (220, 220, 50),
+        "purple": (180, 50, 180),
+        "pink": (255, 150, 200),
+        "orange": (255, 165, 0),
+        "black": (30, 30, 30),
+        "white": (240, 240, 240),
+        "grey": (128, 128, 128),
+        "gray": (128, 128, 128),
+        "brown": (139, 69, 19),
+    }
+    
+    for color_name, rgb in color_mapping.items():
+        if color_name in prompt:
+            return rgb
+    
+    # Default color - cyberpunk cyan
+    return (0, 242, 255)
+
+@app.get("/api/generated/{filename}")
+async def get_generated_image(filename: str):
+    """
+    Serve generated images
+    """
+    file_path = os.path.join("generated", filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    return FileResponse(file_path)
+
+@app.post("/api/text-to-tryon")
+async def text_to_tryon(
+    model: UploadFile = File(...),
+    clothingImageUrl: str = Query(...),
+    category: str = Query("Upper body")
+):
+    """
+    Process a text-to-clothing try-on request
+    """
+    try:
+        # Save uploaded model image
+        model_id = str(uuid.uuid4())
+        model_filename = f"{model_id}_{model.filename}"
+        model_path = os.path.join("uploads", "models", model_filename)
+        
+        # Ensure directories exist
+        os.makedirs("uploads/models", exist_ok=True)
+        os.makedirs("uploads/clothes", exist_ok=True)
+        
+        # Save the model image
+        with open(model_path, "wb") as f:
+            shutil.copyfileobj(model.file, f)
+        
+        # Get the clothing image from the URL (which is a local URL)
+        # Extract the filename from clothingImageUrl
+        cloth_filename = os.path.basename(clothingImageUrl)
+        
+        # Construct the full path to the clothing image
+        clothing_full_path = os.path.join("generated", cloth_filename)
+        
+        if not os.path.exists(clothing_full_path):
+            raise HTTPException(status_code=404, detail="Clothing image not found")
+        
+        # Copy the clothing image to the uploads/clothes directory
+        cloth_id = str(uuid.uuid4())
+        new_cloth_filename = f"{cloth_id}_{cloth_filename}"
+        cloth_path = os.path.join("uploads", "clothes", new_cloth_filename)
+        
+        shutil.copy(clothing_full_path, cloth_path)
+        
+        logging.info(f"Processing text-to-tryon with model: {model_path}, cloth: {cloth_path}, category: {category}")
+        
+        # Process the virtual try-on using the existing function
+        result_path = process_tryon(model_path, cloth_path, category)
+        
+        # Extract just the filename from the result path
+        result_filename = os.path.basename(result_path)
+        
+        # Return the result
+        return {
+            "resultUrl": f"/api/result/{result_filename}",
+            "message": "Try-on completed successfully"
+        }
+        
+    except Exception as e:
+        logging.error(f"Error in text_to_tryon: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     # Configure server

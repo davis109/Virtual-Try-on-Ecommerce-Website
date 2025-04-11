@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -15,21 +15,27 @@ import {
   Drawer,
   List,
   ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Divider,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import MenuIcon from '@mui/icons-material/Menu';
-import HomeIcon from '@mui/icons-material/Home';
-import CategoryIcon from '@mui/icons-material/Category';
-import CheckroomIcon from '@mui/icons-material/Checkroom';
-import LoginIcon from '@mui/icons-material/Login';
-import PersonAddIcon from '@mui/icons-material/PersonAdd';
-import CloseIcon from '@mui/icons-material/Close';
+import { motion } from 'framer-motion';
+import { 
+  Menu as MenuIcon, 
+  ShoppingCart as CartIcon, 
+  Person as AccountIcon,
+  Login as LoginIcon,
+  PersonAdd as PersonAddIcon,
+  Home as HomeIcon,
+  Category as CategoryIcon,
+  Checkroom as CheckroomIcon,
+  Favorite as FavoriteIcon,
+  AutoFixHigh as MagicWandIcon,
+  Close as CloseIcon
+} from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { animateNavItems, buttonEnter, buttonLeave, linkEnter, linkLeave, animateLogo } from '../utils/animations';
 
@@ -87,16 +93,16 @@ const Navbar = () => {
   const navItems = [
     { text: 'Home', icon: <HomeIcon />, path: '/' },
     { text: 'Products', icon: <CategoryIcon />, path: '/products' },
-    { text: 'Virtual Try-On', icon: <CheckroomIcon />, path: '/virtual-tryon' },
-    { text: 'Login', icon: <LoginIcon />, path: '/login' },
-    { text: 'Register', icon: <PersonAddIcon />, path: '/register' },
+    { text: 'VTON', icon: <CheckroomIcon />, path: '/virtual-tryon' },
+    { text: 'Text to Clothing', icon: <MagicWandIcon />, path: '/text-to-clothing' },
+    { text: 'Wishlist', icon: <FavoriteIcon />, path: '/wishlist' },
   ];
   
   const drawer = (
     <Box sx={{ width: 280 }} role="presentation" onClick={toggleDrawer(false)} onKeyDown={toggleDrawer(false)}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
         <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-          Virtual Try-On
+          VTON
         </Typography>
         <IconButton onClick={toggleDrawer(false)}>
           <CloseIcon />
@@ -167,7 +173,7 @@ const Navbar = () => {
             }}
           >
             <CheckroomIcon sx={{ mr: 1, fontSize: 28 }} ref={logoRef} />
-            Virtual Try-On
+            VTON
           </Typography>
           
           {!isMobile && (
@@ -263,7 +269,7 @@ const Navbar = () => {
               ref={(el) => iconButtonsRef.current[1] = el}
             >
               <Badge badgeContent={cartItems.length} color="secondary">
-                <ShoppingCartIcon />
+                <CartIcon />
               </Badge>
             </IconButton>
           </Box>

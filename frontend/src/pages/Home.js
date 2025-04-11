@@ -25,6 +25,7 @@ import CheckroomIcon from '@mui/icons-material/Checkroom';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import SecurityIcon from '@mui/icons-material/Security';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { useDispatch, useSelector } from 'react-redux';
 import { addToWishlist, removeFromWishlist } from '../store/wishlistSlice';
 import { addToCart } from '../store/cartSlice';
@@ -405,7 +406,7 @@ const Home = () => {
   const features = [
     {
       icon: <CheckroomIcon sx={{ fontSize: 50, color: 'primary.main', mb: 2 }} />,
-      title: 'Virtual Try-On',
+      title: 'VTON',
       description: 'Try clothes virtually before making a purchase decision.',
     },
     {
@@ -494,7 +495,7 @@ const Home = () => {
   };
 
   return (
-    <Box>
+    <Box sx={{ minHeight: '100vh' }}>
       {/* Hero Section with milky way background and blurry blobs */}
       <HeroSection ref={heroBackgroundRef}>
         {/* Milky Way Background */}
@@ -619,212 +620,267 @@ const Home = () => {
         </Container>
       </HeroSection>
 
-      {/* Features Section */}
-      <Container 
-        maxWidth="lg" 
-        sx={{ py: 8 }}
-        ref={(el) => (sectionsRef.current[0] = el)}
-      >
-        <Box sx={{ textAlign: 'center', mb: 6 }}>
-          <SectionTitle variant="h4" component="h2">
-            Why Choose Us
-          </SectionTitle>
-          <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto', mt: 2 }}>
-            We offer a unique shopping experience with our innovative features and commitment to customer satisfaction.
-          </Typography>
-        </Box>
-        
-        <Grid container spacing={4}>
-          {features.map((feature, index) => (
-            <Grid item xs={12} sm={6} md={3} key={index}>
-              <FeatureCard 
-                elevation={1}
-                ref={(el) => (featureCardsRef.current[index] = el)}
-              >
-                {feature.icon}
-                <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
-                  {feature.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {feature.description}
-                </Typography>
-              </FeatureCard>
-            </Grid>
-          ))}
-        </Grid>
-      </Container>
-
-      {/* Featured Products Section */}
-      <Box 
-        sx={{ bgcolor: 'background.default', py: 8 }}
-        ref={(el) => (sectionsRef.current[1] = el)}
-      >
-        <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <SectionTitle variant="h4" component="h2">
-              Featured Products
-            </SectionTitle>
-            <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto', mt: 2 }}>
-              Discover our most popular items that you can try on virtually before purchasing.
-            </Typography>
-          </Box>
-          
-          <Grid container spacing={3}>
-            {featuredProducts.map((product, index) => (
-              <Grid item xs={12} sm={6} md={3} key={product.id}>
-                <ProductCard ref={(el) => (productCardsRef.current[index] = el)}>
-                  <Box sx={{ position: 'relative' }}>
-                    <ProductImage
-                      image={product.image}
-                      title={product.name}
-                      ref={(el) => (productImagesRef.current[index] = el)}
-                    />
-                    <PriceChip
-                      label={`$${product.price.toFixed(2)}`}
-                      size="medium"
-                    />
-                  </Box>
-                  <CardContent sx={{ 
-                    flexGrow: 1, 
-                    transform: 'translateZ(20px)',
-                    transformStyle: 'preserve-3d'
-                  }}>
-                    <Typography variant="h6" component="h3" gutterBottom sx={{ 
-                      fontWeight: 600,
-                      transform: 'translateZ(30px)',
-                      transformStyle: 'preserve-3d'
-                    }}>
-                      {product.name}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ 
-                      mb: 2,
-                      transform: 'translateZ(15px)',
-                      transformStyle: 'preserve-3d'
-                    }}>
-                      {product.description}
-                    </Typography>
-                    <Box sx={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      mt: 2,
-                      transform: 'translateZ(40px)',
-                      transformStyle: 'preserve-3d'
-                    }}>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        size="small"
-                        startIcon={<ShoppingCartIcon />}
-                        onClick={() => handleAddToCart(product)}
-                        sx={{
-                          transformStyle: 'preserve-3d'
-                        }}
-                        onMouseEnter={handleButtonEnter}
-                        onMouseLeave={handleButtonLeave}
-                      >
-                        Add to Cart
-                      </Button>
-                      <IconButton
-                        size="small"
-                        color={isInWishlist(product.id) ? "secondary" : "default"}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleWishlistToggle(product);
-                        }}
-                        sx={{
-                          position: 'absolute',
-                          top: 10,
-                          right: 10,
-                          bgcolor: 'white',
-                          '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
-                          zIndex: 2,
-                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                          transformStyle: 'preserve-3d'
-                        }}
-                        onMouseEnter={handleButtonEnter}
-                        onMouseLeave={handleButtonLeave}
-                      >
-                        {isInWishlist(product.id) ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-                      </IconButton>
-                    </Box>
-                  </CardContent>
-                </ProductCard>
-              </Grid>
-            ))}
-          </Grid>
-          
-          <Box sx={{ textAlign: 'center', mt: 4 }}>
-            <Button
-              variant="contained"
-              color="primary"
-              size="large"
-              component={RouterLink}
-              to="/products"
-              sx={{ px: 4, py: 1.2 }}
-              onMouseEnter={handleButtonEnter}
-              onMouseLeave={handleButtonLeave}
-            >
-              View All Products
-            </Button>
-          </Box>
-        </Container>
-      </Box>
-
-      {/* Virtual Try-On CTA Section */}
-      <Box 
-        sx={{ 
-          py: 10,
-          backgroundImage: 'linear-gradient(rgba(252, 68, 15, 0.9), rgba(252, 68, 15, 0.9)), url(https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          color: 'white',
-          textAlign: 'center',
-          transformStyle: 'preserve-3d',
-          position: 'relative'
-        }}
-        ref={(el) => (sectionsRef.current[2] = el)}
-      >
-        <Container maxWidth="md">
-          <Typography variant="h3" component="h2" gutterBottom sx={{ 
-            fontWeight: 700,
-            textShadow: '0 5px 15px rgba(0,0,0,0.2)',
-            transform: 'translateZ(50px)',
-            transformStyle: 'preserve-3d'
-          }}>
-            Ready to Try Before You Buy?
-          </Typography>
-          <Typography variant="h6" sx={{ 
-            maxWidth: 700, 
-            mx: 'auto', 
-            mb: 4, 
-            opacity: 0.9,
-            transform: 'translateZ(30px)',
-            transformStyle: 'preserve-3d'
-          }}>
-            Our virtual try-on technology lets you see how clothes look on you without the hassle of a fitting room.
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            component={RouterLink}
-            to="/virtual-tryon"
-            startIcon={<CheckroomIcon />}
-            sx={{ 
-              py: 1.5, 
-              px: 4, 
-              fontSize: '1.1rem',
-              boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-              transform: 'translateZ(60px)',
-              transformStyle: 'preserve-3d'
+      <Container maxWidth="lg" sx={{ mt: 10, mb: 10 }}>
+        {/* New Feature Highlight Section */}
+        <Box sx={{ mb: 10 }}>
+          <Paper
+            elevation={3}
+            sx={{
+              p: 4,
+              borderRadius: 2,
+              background: 'linear-gradient(135deg, rgba(10, 10, 20, 0.95), rgba(30, 30, 60, 0.8))',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(0, 242, 255, 0.1)',
+              overflow: 'hidden',
+              position: 'relative'
             }}
-            onMouseEnter={handleButtonEnter}
-            onMouseLeave={handleButtonLeave}
           >
-            Try On Now
-          </Button>
-        </Container>
-      </Box>
+            <Grid container spacing={4} alignItems="center">
+              <Grid item xs={12} md={6}>
+                <GradientText variant="h4" gutterBottom>
+                  New: Text to Clothing Virtual Try-On
+                </GradientText>
+                <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                  Imagine any clothing and try it on instantly! Our AI-powered text-to-clothing feature transforms your clothing descriptions into virtual garments you can try on.
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mb: 3 }}>
+                  <Chip 
+                    icon={<AutoFixHighIcon />} 
+                    label="AI-Powered" 
+                    sx={{ 
+                      bgcolor: 'rgba(0, 242, 255, 0.1)', 
+                      border: '1px solid rgba(0, 242, 255, 0.3)' 
+                    }} 
+                  />
+                  <Chip 
+                    icon={<CheckroomIcon />} 
+                    label="VTON" 
+                    sx={{ 
+                      bgcolor: 'rgba(252, 15, 192, 0.1)', 
+                      border: '1px solid rgba(252, 15, 192, 0.3)' 
+                    }} 
+                  />
+                </Box>
+                <Button
+                  component={RouterLink}
+                  to="/text-to-clothing"
+                  variant="contained"
+                  color="secondary"
+                  size="large"
+                  startIcon={<AutoFixHighIcon />}
+                  onMouseEnter={handleButtonEnter}
+                  onMouseLeave={handleButtonLeave}
+                  sx={{ mt: 2 }}
+                >
+                  Try It Now
+                </Button>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <Box
+                  sx={{
+                    position: 'relative',
+                    height: 320,
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
+                    '&::before': {
+                      content: '""',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      background: 'linear-gradient(45deg, rgba(0, 242, 255, 0.1) 0%, rgba(252, 15, 192, 0.1) 100%)',
+                      zIndex: 2
+                    }
+                  }}
+                >
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      backgroundImage: 'url(/images/text-to-clothing-preview.svg)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      transition: 'transform 0.5s ease',
+                      '&:hover': {
+                        transform: 'scale(1.05)'
+                      }
+                    }}
+                  />
+                  <Typography
+                    variant="h5"
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      width: '100%',
+                      padding: 2,
+                      background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%)',
+                      color: 'white',
+                      zIndex: 3
+                    }}
+                  >
+                    Design Your Dream Wardrobe
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Box>
+
+        {/* Features Section */}
+        <Box ref={(el) => (sectionsRef.current[0] = el)} sx={{ mb: 10 }}>
+          <Container 
+            maxWidth="lg" 
+            sx={{ py: 8 }}
+          >
+            <Box sx={{ textAlign: 'center', mb: 6 }}>
+              <SectionTitle variant="h4" component="h2">
+                Why Choose Us
+              </SectionTitle>
+              <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto', mt: 2 }}>
+                We offer a unique shopping experience with our innovative features and commitment to customer satisfaction.
+              </Typography>
+            </Box>
+            
+            <Grid container spacing={4}>
+              {features.map((feature, index) => (
+                <Grid item xs={12} sm={6} md={3} key={index}>
+                  <FeatureCard 
+                    elevation={1}
+                    ref={(el) => (featureCardsRef.current[index] = el)}
+                  >
+                    {feature.icon}
+                    <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 600 }}>
+                      {feature.title}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {feature.description}
+                    </Typography>
+                  </FeatureCard>
+                </Grid>
+              ))}
+            </Grid>
+          </Container>
+        </Box>
+
+        {/* Featured Products Section */}
+        <Box ref={(el) => (sectionsRef.current[1] = el)} sx={{ mb: 10 }}>
+          <Container maxWidth="lg">
+            <Box sx={{ textAlign: 'center', mb: 6 }}>
+              <SectionTitle variant="h4" component="h2">
+                Featured Products
+              </SectionTitle>
+              <Typography variant="body1" color="text.secondary" sx={{ maxWidth: 700, mx: 'auto', mt: 2 }}>
+                Discover our most popular items that you can try on virtually before purchasing.
+              </Typography>
+            </Box>
+            
+            <Grid container spacing={3}>
+              {featuredProducts.map((product, index) => (
+                <Grid item xs={12} sm={6} md={3} key={product.id}>
+                  <ProductCard ref={(el) => (productCardsRef.current[index] = el)}>
+                    <Box sx={{ position: 'relative' }}>
+                      <ProductImage
+                        image={product.image}
+                        title={product.name}
+                        ref={(el) => (productImagesRef.current[index] = el)}
+                      />
+                      <PriceChip
+                        label={`$${product.price.toFixed(2)}`}
+                        size="medium"
+                      />
+                    </Box>
+                    <CardContent sx={{ 
+                      flexGrow: 1, 
+                      transform: 'translateZ(20px)',
+                      transformStyle: 'preserve-3d'
+                    }}>
+                      <Typography variant="h6" component="h3" gutterBottom sx={{ 
+                        fontWeight: 600,
+                        transform: 'translateZ(30px)',
+                        transformStyle: 'preserve-3d'
+                      }}>
+                        {product.name}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" sx={{ 
+                        mb: 2,
+                        transform: 'translateZ(15px)',
+                        transformStyle: 'preserve-3d'
+                      }}>
+                        {product.description}
+                      </Typography>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        mt: 2,
+                        transform: 'translateZ(40px)',
+                        transformStyle: 'preserve-3d'
+                      }}>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          size="small"
+                          startIcon={<ShoppingCartIcon />}
+                          onClick={() => handleAddToCart(product)}
+                          sx={{
+                            transformStyle: 'preserve-3d'
+                          }}
+                          onMouseEnter={handleButtonEnter}
+                          onMouseLeave={handleButtonLeave}
+                        >
+                          Add to Cart
+                        </Button>
+                        <IconButton
+                          size="small"
+                          color={isInWishlist(product.id) ? "secondary" : "default"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleWishlistToggle(product);
+                          }}
+                          sx={{
+                            position: 'absolute',
+                            top: 10,
+                            right: 10,
+                            bgcolor: 'white',
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' },
+                            zIndex: 2,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            transformStyle: 'preserve-3d'
+                          }}
+                          onMouseEnter={handleButtonEnter}
+                          onMouseLeave={handleButtonLeave}
+                        >
+                          {isInWishlist(product.id) ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+                        </IconButton>
+                      </Box>
+                    </CardContent>
+                  </ProductCard>
+                </Grid>
+              ))}
+            </Grid>
+            
+            <Box sx={{ textAlign: 'center', mt: 4 }}>
+              <Button
+                variant="contained"
+                color="primary"
+                size="large"
+                component={RouterLink}
+                to="/products"
+                sx={{ px: 4, py: 1.2 }}
+                onMouseEnter={handleButtonEnter}
+                onMouseLeave={handleButtonLeave}
+              >
+                View All Products
+              </Button>
+            </Box>
+          </Container>
+        </Box>
+      </Container>
     </Box>
   );
 };
