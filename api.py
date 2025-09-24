@@ -28,8 +28,29 @@ import json
 from datetime import datetime
 from pydantic import BaseModel
 from concurrent.futures import ThreadPoolExecutor
-from stability_api import StabilityAI
 import string
+import re
+import traceback
+
+# Utility functions for file handling
+def secure_filename(filename):
+    """
+    Secure a filename by removing dangerous characters
+    """
+    # Remove or replace dangerous characters
+    filename = re.sub(r'[^a-zA-Z0-9._-]', '', filename)
+    return filename
+
+def cleanup_temp_file(file_path):
+    """
+    Clean up temporary files
+    """
+    try:
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"Cleaned up temp file: {file_path}")
+    except Exception as e:
+        logger.warning(f"Failed to cleanup temp file {file_path}: {e}")
 
 # Load environment variables from .env file
 load_dotenv()
@@ -678,14 +699,11 @@ async def root():
 class TextToClothingRequest(BaseModel):
     prompt: str
 
-# Initialize Stability AI client with the correct API key
-stability_client = StabilityAI(api_key=os.getenv("STABILITY_API_KEY", "sk-KIDka9AAmTbf5r5woxhQREke7NklEXmPvAMBk4sG7PM3Nd90"))
-
 # Add new endpoints for text-to-clothing feature
 @app.post("/api/generate-clothing")
 async def generate_clothing(request: TextToClothingRequest):
     """
-    Generate clothing image from text description using Stability AI
+    Generate clothing image from text description using Segmind API
     """
     try:
         # Log the request
@@ -695,193 +713,160 @@ async def generate_clothing(request: TextToClothingRequest):
         enhanced_prompt = f"Highly detailed isolated clothing item on a plain white background, professional product photo: {request.prompt}"
         negative_prompt = "person, model, mannequin, watermark, logo, text, blurry, low quality"
         
+        # Get Segmind API key
+        api_key = os.environ.get("SEGMIND_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Segmind API key not configured")
+        
         try:
-            # DIRECT API IMPLEMENTATION - no intermediary class
-            api_key = "sk-KIDka9AAmTbf5r5woxhQREke7NklEXmPvAMBk4sG7PM3Nd90"
-            engine_id = "stable-diffusion-xl-1024-v1-0"
-            
-            # Construct the endpoint URL - confirmed working with this API key format
-            api_url = f"https://api.stability.ai/v1/generation/{engine_id}/text-to-image"
+            # Use Segmind API for text-to-image generation
+            api_url = "https://api.segmind.com/v1/sdxl1.0-txt2img"
             
             headers = {
-                "Accept": "application/json",
-                "Authorization": f"Bearer {api_key}",
+                "x-api-key": api_key,
                 "Content-Type": "application/json"
             }
             
             payload = {
-                "text_prompts": [
-                    {"text": enhanced_prompt, "weight": 1.0},
-                    {"text": negative_prompt, "weight": -1.0}
-                ],
-                "cfg_scale": 7.0,
-                "height": 1024,
-                "width": 1024,
+                "prompt": enhanced_prompt,
+                "negative_prompt": negative_prompt,
+                "style": "base",
                 "samples": 1,
-                "steps": 30
+                "scheduler": "UniPC",
+                "num_inference_steps": 25,
+                "guidance_scale": 7.5,
+                "strength": 1,
+                "high_noise_frac": 0.8,
+                "seed": random.randint(1, 2147483647),
+                "img_width": 1024,
+                "img_height": 1024,
+                "base64": False
             }
             
-            # Log the full request details for debugging
-            logging.info(f"Making request to Stability AI API at {api_url}")
-            logging.info(f"Headers: {headers}")
-            logging.info(f"Payload: {payload}")
+            logging.info(f"Making request to Segmind API with prompt: {enhanced_prompt}")
             
-            # Make the API request with proper error handling
-            response = requests.post(api_url, headers=headers, json=payload, timeout=60)
+            # Make the API request
+            response = requests.post(api_url, headers=headers, json=payload, timeout=120)
             
-            # Log detailed response information
-            logging.info(f"Response status code: {response.status_code}")
-            
-            # Check if request was successful
             if response.status_code == 200:
-                response_data = response.json()
+                # Save the generated image
+                timestamp = int(time.time())
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+                filename = f"generated_clothing_{timestamp}_{random_suffix}.png"
                 
-                # Log success information
-                logging.info("Successfully received response from Stability AI API")
-                logging.info(f"Response keys: {list(response_data.keys())}")
+                # Ensure directory exists
+                os.makedirs("generated", exist_ok=True)
                 
-                # Extract the generated image
-                if "artifacts" in response_data and len(response_data["artifacts"]) > 0:
-                    image_data_base64 = response_data["artifacts"][0]["base64"]
-                    image_data = base64.b64decode(image_data_base64)
-                    
-                    # Save the generated image
-                    timestamp = int(time.time())
-                    random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-                    filename = f"generated_clothing_{timestamp}_{random_suffix}.png"
-                    
-                    # Ensure directory exists
-                    os.makedirs("generated", exist_ok=True)
-                    
-                    # Save the image
-                    image_path = os.path.join("generated", filename)
-                    with open(image_path, "wb") as f:
-                        f.write(image_data)
-                    
-                    logging.info(f"Successfully generated and saved image to {image_path}")
-                    
-                    # Return the URL to the generated image
-                    image_url = f"/api/generated/{filename}"
-                    return {"imageUrl": image_url, "message": "Clothing generated successfully with Stability AI"}
-                else:
-                    logging.error(f"No artifacts in API response: {response_data}")
-                    raise Exception("No image data in API response")
+                # Save the image
+                image_path = os.path.join("generated", filename)
+                with open(image_path, "wb") as f:
+                    f.write(response.content)
+                
+                logging.info(f"Successfully generated and saved image to {image_path}")
+                
+                # Return the URL to the generated image
+                image_url = f"/api/generated/{filename}"
+                return {"imageUrl": image_url, "message": "Clothing generated successfully"}
             else:
-                # Log error details for debugging
-                error_info = {
-                    "status_code": response.status_code,
-                    "response_text": response.text[:1000]  # Limit text to avoid huge logs
-                }
+                logging.error(f"Segmind API request failed with status {response.status_code}: {response.text}")
+                raise Exception(f"Segmind API request failed with status {response.status_code}")
                 
-                logging.error(f"API request failed: {error_info}")
-                
-                # Try to parse error details if possible
-                try:
-                    error_json = response.json()
-                    logging.error(f"Error JSON: {error_json}")
-                except Exception as e:
-                    logging.error(f"Could not parse error response as JSON: {e}")
-                
-                # Fall back to local generation as the API request failed
-                raise Exception(f"API request failed with status {response.status_code}")
-                
-        except Exception as e:
-            logging.error(f"Direct Stability AI call failed: {str(e)}")
+        except Exception as api_error:
+            logging.error(f"Segmind API error: {str(api_error)}")
             logging.error(traceback.format_exc())
-            logging.info("Falling back to local image generation")
-        
-        # Fallback to local image generation with clear visual indicator
-        logging.info("Using local fallback image generation")
-        
-        # Create a more visually appealing fallback with clear indication
-        width, height = 768, 768
-        image = Image.new("RGB", (width, height), (30, 30, 50))
-        draw = ImageDraw.Draw(image)
-        
-        # Gradient background for better visual appeal
-        for y in range(height):
-            r = int(30 + (y / height) * 30)
-            g = int(30 + (y / height) * 30)
-            b = int(50 + (y / height) * 50)
-            for x in range(width):
-                # Add some noise for texture
-                noise = random.randint(-10, 10)
-                r_pixel = max(0, min(255, r + noise))
-                g_pixel = max(0, min(255, g + noise))
-                b_pixel = max(0, min(255, b + noise))
-                draw.point((x, y), fill=(r_pixel, g_pixel, b_pixel))
-        
-        # Draw clothing silhouette based on prompt
-        color = get_color_from_prompt(request.prompt)
-        
-        # Draw clothing outline based on type mentioned in prompt
-        prompt_lower = request.prompt.lower()
-        if any(word in prompt_lower for word in ["shirt", "tee", "blouse", "top"]):
-            # T-shirt silhouette
-            draw.rectangle((width//4, height//4, 3*width//4, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
-            draw.rectangle((width//8, height//4, width//4, height//2), fill=color, outline=(255, 255, 255), width=3)
-            draw.rectangle((3*width//4, height//4, 7*width//8, height//2), fill=color, outline=(255, 255, 255), width=3)
-            draw.ellipse((3*width//8, height//6, 5*width//8, height//3), fill=color, outline=(255, 255, 255), width=3)
-        elif any(word in prompt_lower for word in ["dress", "gown"]):
-            # Dress silhouette
-            draw.rectangle((width//3, height//6, 2*width//3, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
-            points = [(width//3, 3*height//4), (width//5, height-height//8), 
-                     (4*width//5, height-height//8), (2*width//3, 3*height//4)]
-            draw.polygon(points, fill=color, outline=(255, 255, 255), width=3)
-        elif any(word in prompt_lower for word in ["pants", "jeans", "trousers"]):
-            # Pants silhouette
-            draw.rectangle((width//3, height//6, 2*width//3, height//4), fill=color, outline=(255, 255, 255), width=3)
-            draw.rectangle((width//3, height//4, width//2-10, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
-            draw.rectangle((width//2+10, height//4, 2*width//3, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
-        else:
-            # Generic clothing item
-            draw.rectangle((width//4, height//4, 3*width//4, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
-        
-        # Add explanatory text about the image being a fallback
-        try:
-            # Try to load a font, falling back gracefully
+            
+            # Fall back to local image generation as last resort
+            logging.info("Using local fallback image generation")
+            
+            # Create a more visually appealing fallback with clear indication
+            width, height = 768, 768
+            image = Image.new("RGB", (width, height), (30, 30, 50))
+            draw = ImageDraw.Draw(image)
+            
+            # Gradient background for better visual appeal
+            for y in range(height):
+                r = int(30 + (y / height) * 30)
+                g = int(30 + (y / height) * 30)
+                b = int(50 + (y / height) * 50)
+                for x in range(width):
+                    # Add some noise for texture
+                    noise = random.randint(-10, 10)
+                    r_pixel = max(0, min(255, r + noise))
+                    g_pixel = max(0, min(255, g + noise))
+                    b_pixel = max(0, min(255, b + noise))
+                    draw.point((x, y), fill=(r_pixel, g_pixel, b_pixel))
+            
+            # Draw clothing silhouette based on prompt
+            color = get_color_from_prompt(request.prompt)
+            
+            # Draw clothing outline based on type mentioned in prompt
+            prompt_lower = request.prompt.lower()
+            if any(word in prompt_lower for word in ["shirt", "tee", "blouse", "top"]):
+                # T-shirt silhouette
+                draw.rectangle((width//4, height//4, 3*width//4, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+                draw.rectangle((width//8, height//4, width//4, height//2), fill=color, outline=(255, 255, 255), width=3)
+                draw.rectangle((3*width//4, height//4, 7*width//8, height//2), fill=color, outline=(255, 255, 255), width=3)
+                draw.ellipse((3*width//8, height//6, 5*width//8, height//3), fill=color, outline=(255, 255, 255), width=3)
+            elif any(word in prompt_lower for word in ["dress", "gown"]):
+                # Dress silhouette
+                draw.rectangle((width//3, height//6, 2*width//3, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+                points = [(width//3, 3*height//4), (width//5, height-height//8), 
+                         (4*width//5, height-height//8), (2*width//3, 3*height//4)]
+                draw.polygon(points, fill=color, outline=(255, 255, 255), width=3)
+            elif any(word in prompt_lower for word in ["pants", "jeans", "trousers"]):
+                # Pants silhouette
+                draw.rectangle((width//3, height//6, 2*width//3, height//4), fill=color, outline=(255, 255, 255), width=3)
+                draw.rectangle((width//3, height//4, width//2-10, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+                draw.rectangle((width//2+10, height//4, 2*width//3, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+            else:
+                # Generic clothing item
+                draw.rectangle((width//4, height//4, 3*width//4, 3*height//4), fill=color, outline=(255, 255, 255), width=3)
+            
+            # Add explanatory text about the image being a fallback
             try:
-                main_font = ImageFont.truetype("arial.ttf", 32)
-                small_font = ImageFont.truetype("arial.ttf", 20)
-            except IOError:
-                main_font = ImageFont.load_default()
-                small_font = ImageFont.load_default()
+                # Try to load a font, falling back gracefully
+                try:
+                    main_font = ImageFont.truetype("arial.ttf", 32)
+                    small_font = ImageFont.truetype("arial.ttf", 20)
+                except IOError:
+                    main_font = ImageFont.load_default()
+                    small_font = ImageFont.load_default()
+                
+                # Add fallback indicator text at the top
+                fallback_text = "FALLBACK VISUALIZATION"
+                text_width = draw.textlength(fallback_text, font=main_font)
+                draw.text(((width - text_width) // 2, 20), fallback_text, fill=(255, 100, 100), font=main_font)
+                
+                # Add the prompt text at the bottom
+                prompt_display = f'"{request.prompt}"'
+                text_width = draw.textlength(prompt_display, font=main_font) 
+                draw.text(((width - text_width) // 2, height - 60), prompt_display, fill=(255, 255, 255), font=main_font)
+                
+                # Add API explanation
+                api_text = "API error occurred - using generated placeholder"
+                text_width = draw.textlength(api_text, font=small_font)
+                draw.text(((width - text_width) // 2, height - 100), api_text, fill=(255, 200, 100), font=small_font)
+                
+            except Exception as text_error:
+                logging.error(f"Error adding text to fallback image: {text_error}")
             
-            # Add fallback indicator text at the top
-            fallback_text = "FALLBACK VISUALIZATION"
-            text_width = draw.textlength(fallback_text, font=main_font)
-            draw.text(((width - text_width) // 2, 20), fallback_text, fill=(255, 100, 100), font=main_font)
+            # Save the generated image
+            timestamp = int(time.time())
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+            filename = f"generated_clothing_{timestamp}_{random_suffix}.png"
             
-            # Add the prompt text at the bottom
-            prompt_display = f'"{request.prompt}"'
-            text_width = draw.textlength(prompt_display, font=main_font) 
-            draw.text(((width - text_width) // 2, height - 60), prompt_display, fill=(255, 255, 255), font=main_font)
+            # Ensure directory exists
+            os.makedirs("generated", exist_ok=True)
             
-            # Add API explanation
-            api_text = "API error occurred - using generated placeholder"
-            text_width = draw.textlength(api_text, font=small_font)
-            draw.text(((width - text_width) // 2, height - 100), api_text, fill=(255, 200, 100), font=small_font)
+            # Save the image
+            image_path = os.path.join("generated", filename)
+            image.save(image_path)
             
-        except Exception as text_error:
-            logging.error(f"Error adding text to fallback image: {text_error}")
-        
-        # Save the generated image
-        timestamp = int(time.time())
-        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
-        filename = f"generated_clothing_{timestamp}_{random_suffix}.png"
-        
-        # Ensure directory exists
-        os.makedirs("generated", exist_ok=True)
-        
-        # Save the image
-        image_path = os.path.join("generated", filename)
-        image.save(image_path)
-        
-        logging.info(f"Generated fallback clothing image saved to {image_path}")
-        
-        # Return the URL to the generated image
-        image_url = f"/api/generated/{filename}"
-        return {"imageUrl": image_url, "message": "Clothing visualization created (local fallback used)"}
+            logging.info(f"Generated fallback clothing image saved to {image_path}")
+            
+            # Return the URL to the generated image
+            image_url = f"/api/generated/{filename}"
+            return {"imageUrl": image_url, "message": "Clothing visualization created (local fallback used)"}
         
     except Exception as e:
         logging.error(f"Error in generate_clothing: {str(e)}")
@@ -983,6 +968,115 @@ async def text_to_tryon(
         logging.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/generate-outfit")
+async def generate_outfit(request: Request):
+    """
+    Generate outfit recommendations based on selected wardrobe items and style preferences using Segmind API
+    """
+    try:
+        # Get request data from JSON body
+        data = await request.json()
+        
+        # Extract parameters
+        selected_items = data.get("items", [])
+        style_preferences = data.get("preferences", {})
+        
+        # Construct a detailed prompt for the outfit generation
+        occasion = style_preferences.get("occasion", "casual")
+        season = style_preferences.get("season", "all")
+        style = style_preferences.get("style", "modern")
+        color_scheme = style_preferences.get("colorScheme", "balanced")
+        
+        # Build a rich prompt for Segmind API
+        prompt = f"Create a highly detailed, photorealistic outfit for a {occasion} occasion in {season} season. "
+        prompt += f"The outfit should have a {style} style with a {color_scheme} color scheme. "
+        
+        # Add details about the selected items if available
+        if selected_items:
+            items_description = ", ".join([f"item {item_id}" for item_id in selected_items[:3]])
+            prompt += f"Include the following items: {items_description}. "
+        
+        prompt += "The outfit should be shown on a plain background, high quality product photography style."
+        
+        # Add negative prompts for better results
+        negative_prompt = "distorted, blurry, disfigured, watermark, text overlay, poor quality"
+        
+        # Get Segmind API key
+        api_key = os.environ.get("SEGMIND_API_KEY")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="Segmind API key not configured")
+        
+        try:
+            # Use Segmind API for outfit generation
+            api_url = "https://api.segmind.com/v1/sdxl1.0-txt2img"
+            
+            headers = {
+                "x-api-key": api_key,
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "style": "base",
+                "samples": 1,
+                "scheduler": "UniPC",
+                "num_inference_steps": 25,
+                "guidance_scale": 7.5,
+                "strength": 1,
+                "high_noise_frac": 0.8,
+                "seed": random.randint(1, 2147483647),
+                "img_width": 1024,
+                "img_height": 1024,
+                "base64": False
+            }
+            
+            logging.info(f"Making request to Segmind API with outfit prompt: {prompt}")
+            
+            # Make the API request
+            response = requests.post(api_url, headers=headers, json=payload, timeout=120)
+            
+            if response.status_code == 200:
+                # Save the generated image
+                timestamp = int(time.time())
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+                filename = f"generated_outfit_{timestamp}_{random_suffix}.png"
+                
+                # Ensure directory exists
+                os.makedirs("generated", exist_ok=True)
+                
+                # Save the image
+                image_path = os.path.join("generated", filename)
+                with open(image_path, "wb") as f:
+                    f.write(response.content)
+                
+                logging.info(f"Successfully generated and saved outfit to {image_path}")
+                
+                # Return the URL to the generated image along with the prompt used
+                image_url = f"/api/generated/{filename}"
+                return {
+                    "imageUrl": image_url, 
+                    "message": "Outfit generated successfully",
+                    "prompt": prompt,
+                    "occasion": occasion,
+                    "season": season,
+                    "style": style,
+                    "colorScheme": color_scheme
+                }
+            else:
+                logging.error(f"Segmind API request failed with status {response.status_code}: {response.text}")
+                raise Exception(f"Segmind API request failed with status {response.status_code}")
+                
+        except Exception as api_error:
+            logging.error(f"Segmind API error: {str(api_error)}")
+            logging.error(traceback.format_exc())
+            raise HTTPException(status_code=500, detail=f"Failed to generate outfit: {str(api_error)}")
+    
+    except Exception as e:
+        logging.error(f"Error in generate_outfit: {str(e)}")
+        logging.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     # Configure server
     config = uvicorn.Config(
@@ -998,8 +1092,473 @@ if __name__ == "__main__":
     
     # Add gzip compression
     app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# ===== SMART FASHION ADVISOR ENDPOINTS =====
+# Enhanced with LangChain RAG system for intelligent fashion advice
+
+try:
+    from smart_fashion_advisor import SmartFashionAdvisor
+    from clothing_image_analyzer import ClothingImageAnalyzer
+    ADVANCED_FASHION_AVAILABLE = True
+except ImportError:
+    # Fallback to simple version if dependencies are not available
+    from simple_fashion_advisor import SimpleFashionAdvisor, SimpleImageAnalyzer
+    SmartFashionAdvisor = SimpleFashionAdvisor
+    ClothingImageAnalyzer = SimpleImageAnalyzer
+    ADVANCED_FASHION_AVAILABLE = False
+    logger.warning("Advanced fashion advisor dependencies not available. Using simplified version.")
+
+# Initialize Smart Fashion Advisor (singleton pattern)
+fashion_advisor = None
+image_analyzer = None
+
+def get_fashion_advisor():
+    global fashion_advisor
+    if fashion_advisor is None:
+        if ADVANCED_FASHION_AVAILABLE:
+            fashion_advisor = SmartFashionAdvisor(use_openai=False)  # Set to True if you have OpenAI API key
+        else:
+            fashion_advisor = SmartFashionAdvisor()
+    return fashion_advisor
+
+def get_image_analyzer():
+    global image_analyzer
+    if image_analyzer is None:
+        if ADVANCED_FASHION_AVAILABLE:
+            image_analyzer = ClothingImageAnalyzer()
+        else:
+            image_analyzer = SimpleImageAnalyzer()
+    return image_analyzer
+
+@app.post("/api/fashion-advice")
+async def get_fashion_advice_endpoint(
+    question: str = Form(...),
+    advice_type: str = Form("general"),
+    image: UploadFile = File(None)
+):
+    """
+    Get personalized fashion advice using RAG-powered Smart Fashion Advisor
     
-    # Run server
+    Args:
+        question: User's fashion question
+        advice_type: Type of advice (general, outfit, color)
+        image: Optional image for visual context
+    """
+    try:
+        advisor = get_fashion_advisor()
+        
+        # If image is provided, analyze it first
+        image_context = {}
+        if image and image.filename:
+            # Save uploaded image temporarily
+            temp_path = f"temp_advice_{int(time.time())}_{image.filename}"
+            
+            with open(temp_path, "wb") as buffer:
+                shutil.copyfileobj(image.file, buffer)
+            
+            # Analyze image
+            analyzer = get_image_analyzer()
+            image_analysis = analyzer.analyze_image(temp_path)
+            
+            # Add image context to question
+            if "dominant_colors" in image_analysis:
+                colors = [c["name"] for c in image_analysis["dominant_colors"][:3]]
+                question += f" (Image shows clothing with colors: {', '.join(colors)})"
+            
+            if "clothing_detection" in image_analysis and "primary_item" in image_analysis["clothing_detection"]:
+                primary_item = image_analysis["clothing_detection"]["primary_item"]
+                question += f" (Primary item detected: {primary_item})"
+            
+            # Clean up temp file
+            cleanup_temp_file(temp_path)
+            
+            image_context = {
+                "image_analyzed": True,
+                "analysis_summary": {
+                    "primary_colors": colors if "dominant_colors" in image_analysis else [],
+                    "primary_item": image_analysis.get("clothing_detection", {}).get("primary_item", "unknown"),
+                    "style": image_analysis.get("style_analysis", {}).get("primary_style", "unknown")
+                }
+            }
+        
+        # Get fashion advice
+        advice_result = advisor.get_fashion_advice(question, advice_type)
+        
+        # Combine results
+        response = {
+            "success": True,
+            "advice": advice_result["advice"],
+            "advice_type": advice_result["type"],
+            "confidence": advice_result.get("confidence", "medium"),
+            "relevant_knowledge": advice_result.get("relevant_knowledge", []),
+            "image_context": image_context,
+            "query": question,
+            "timestamp": int(time.time())
+        }
+        
+        logger.info(f"Fashion advice generated for query: {question[:50]}...")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Fashion advice error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to generate fashion advice: {str(e)}"
+        }
+
+@app.post("/api/analyze-outfit")
+async def analyze_outfit(
+    image: UploadFile = File(...),
+    occasion: str = Form(""),
+    preferences: str = Form("")
+):
+    """
+    Analyze uploaded outfit image and provide detailed feedback
+    
+    Args:
+        image: Image of the outfit to analyze
+        occasion: Occasion for the outfit (optional)
+        preferences: User style preferences (optional)
+    """
+    try:
+        if not image.filename:
+            raise HTTPException(status_code=400, detail="No image provided")
+        
+        # Save uploaded image
+        unique_filename = f"outfit_analysis_{int(time.time())}_{secure_filename(image.filename)}"
+        file_path = os.path.join("uploads", unique_filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(image.file, buffer)
+        
+        # Analyze image
+        analyzer = get_image_analyzer()
+        image_analysis = analyzer.analyze_image(file_path)
+        
+        # Get fashion advice based on analysis
+        advisor = get_fashion_advisor()
+        
+        # Create detailed question for advisor
+        question = f"Analyze this outfit"
+        if occasion:
+            question += f" for {occasion}"
+        if preferences:
+            question += f". User preferences: {preferences}"
+        
+        # Add image analysis context
+        if "dominant_colors" in image_analysis:
+            colors = [c["name"] for c in image_analysis["dominant_colors"][:3]]
+            question += f". The outfit has colors: {', '.join(colors)}"
+        
+        if "style_analysis" in image_analysis:
+            style = image_analysis["style_analysis"].get("primary_style", "")
+            if style:
+                question += f". The style appears to be {style}"
+        
+        # Get advice
+        advice_result = advisor.get_fashion_advice(question, "outfit")
+        
+        # Combine all results
+        response = {
+            "success": True,
+            "image_analysis": image_analysis,
+            "fashion_advice": advice_result["advice"],
+            "recommendations": image_analysis.get("recommendations", []),
+            "outfit_cohesion": image_analysis.get("outfit_cohesion", {}),
+            "dominant_colors": image_analysis.get("dominant_colors", []),
+            "style_detected": image_analysis.get("style_analysis", {}),
+            "occasion": occasion,
+            "preferences": preferences,
+            "timestamp": int(time.time())
+        }
+        
+        logger.info(f"Outfit analysis completed for image: {unique_filename}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Outfit analysis error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to analyze outfit: {str(e)}"
+        }
+
+@app.post("/api/color-coordination")
+async def get_color_coordination(
+    base_colors: str = Form(...),
+    season: str = Form(""),
+    style_preference: str = Form("")
+):
+    """
+    Get color coordination advice for given base colors
+    
+    Args:
+        base_colors: Comma-separated list of base colors
+        season: Season preference (optional)
+        style_preference: Style preference (optional)
+    """
+    try:
+        advisor = get_fashion_advisor()
+        
+        # Parse base colors
+        colors_list = [color.strip() for color in base_colors.split(",")]
+        
+        # Get color advice
+        advice_result = advisor.get_color_palette_advice(colors_list, season)
+        
+        # Additional color theory analysis
+        color_suggestions = {
+            "red": ["green", "cream", "navy", "gold"],
+            "blue": ["orange", "yellow", "white", "silver"],
+            "green": ["red", "pink", "brown", "beige"],
+            "yellow": ["purple", "gray", "navy", "black"],
+            "purple": ["yellow", "green", "cream", "gold"],
+            "orange": ["blue", "teal", "brown", "cream"],
+            "pink": ["green", "navy", "gray", "white"],
+            "brown": ["cream", "orange", "gold", "green"],
+            "black": ["white", "red", "gold", "silver"],
+            "white": ["any color"],
+            "gray": ["yellow", "pink", "blue", "green"],
+            "navy": ["white", "cream", "coral", "gold"]
+        }
+        
+        suggestions = []
+        for color in colors_list:
+            color_lower = color.lower()
+            if color_lower in color_suggestions:
+                suggestions.extend(color_suggestions[color_lower])
+        
+        # Remove duplicates and base colors
+        suggestions = list(set(suggestions) - set([c.lower() for c in colors_list]))
+        
+        response = {
+            "success": True,
+            "base_colors": colors_list,
+            "advice": advice_result["advice"],
+            "color_suggestions": suggestions[:8],  # Top 8 suggestions
+            "season": season,
+            "style_preference": style_preference,
+            "confidence": advice_result.get("confidence", "medium"),
+            "timestamp": int(time.time())
+        }
+        
+        logger.info(f"Color coordination advice for: {base_colors}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Color coordination error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to provide color coordination advice: {str(e)}"
+        }
+
+@app.post("/api/body-type-advice")
+async def get_body_type_advice(
+    body_type: str = Form(...),
+    style_goals: str = Form(""),
+    occasion: str = Form(""),
+    budget_range: str = Form("")
+):
+    """
+    Get styling advice for specific body type
+    
+    Args:
+        body_type: Body type (apple, pear, rectangle, hourglass, inverted_triangle)
+        style_goals: User's style goals (optional)
+        occasion: Specific occasion (optional)
+        budget_range: Budget considerations (optional)
+    """
+    try:
+        advisor = get_fashion_advisor()
+        
+        # Get body type specific advice
+        advice_result = advisor.get_body_type_advice(body_type, style_goals)
+        
+        # Add additional context
+        context_additions = []
+        if occasion:
+            context_additions.append(f"for {occasion}")
+        if budget_range:
+            context_additions.append(f"with {budget_range} budget")
+        
+        if context_additions:
+            additional_question = f"Specifically {', '.join(context_additions)}, what are the best options?"
+            additional_advice = advisor.get_fashion_advice(additional_question, "general")
+        else:
+            additional_advice = {"advice": ""}
+        
+        response = {
+            "success": True,
+            "body_type": body_type,
+            "main_advice": advice_result["advice"],
+            "additional_advice": additional_advice["advice"],
+            "style_goals": style_goals,
+            "occasion": occasion,
+            "budget_range": budget_range,
+            "confidence": advice_result.get("confidence", "medium"),
+            "relevant_knowledge": advice_result.get("relevant_knowledge", []),
+            "timestamp": int(time.time())
+        }
+        
+        logger.info(f"Body type advice for: {body_type}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Body type advice error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to provide body type advice: {str(e)}"
+        }
+
+@app.post("/api/occasion-dressing")
+async def get_occasion_advice(
+    occasion: str = Form(...),
+    weather: str = Form(""),
+    dress_code: str = Form(""),
+    personal_style: str = Form(""),
+    constraints: str = Form("")
+):
+    """
+    Get outfit advice for specific occasions
+    
+    Args:
+        occasion: Type of occasion
+        weather: Weather conditions (optional)
+        dress_code: Dress code requirements (optional)
+        personal_style: Personal style preference (optional)
+        constraints: Any constraints like budget, body concerns, etc. (optional)
+    """
+    try:
+        advisor = get_fashion_advisor()
+        
+        # Build comprehensive constraints string
+        all_constraints = []
+        if weather:
+            all_constraints.append(f"weather: {weather}")
+        if dress_code:
+            all_constraints.append(f"dress code: {dress_code}")
+        if personal_style:
+            all_constraints.append(f"style preference: {personal_style}")
+        if constraints:
+            all_constraints.append(constraints)
+        
+        constraints_str = ", ".join(all_constraints) if all_constraints else ""
+        
+        # Get occasion-specific advice
+        advice_result = advisor.get_occasion_advice(occasion, constraints_str)
+        
+        response = {
+            "success": True,
+            "occasion": occasion,
+            "advice": advice_result["advice"],
+            "weather": weather,
+            "dress_code": dress_code,
+            "personal_style": personal_style,
+            "constraints": constraints,
+            "confidence": advice_result.get("confidence", "medium"),
+            "timestamp": int(time.time())
+        }
+        
+        logger.info(f"Occasion advice for: {occasion}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Occasion advice error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to provide occasion advice: {str(e)}"
+        }
+
+@app.post("/api/trend-analysis")
+async def get_trend_analysis(
+    season: str = Form("current"),
+    style_preference: str = Form(""),
+    age_range: str = Form(""),
+    lifestyle: str = Form("")
+):
+    """
+    Get current fashion trend analysis and recommendations
+    
+    Args:
+        season: Season for trends (spring, summer, fall, winter, current)
+        style_preference: User's style preference (optional)
+        age_range: Age range for appropriate trends (optional)
+        lifestyle: Lifestyle considerations (optional)
+    """
+    try:
+        advisor = get_fashion_advisor()
+        
+        # Get trend advice
+        advice_result = advisor.get_trend_advice(season, style_preference)
+        
+        # Add lifestyle and age considerations
+        if age_range or lifestyle:
+            context_question = f"How can I adapt current trends for"
+            if age_range:
+                context_question += f" someone in their {age_range}"
+            if lifestyle:
+                context_question += f" with a {lifestyle} lifestyle"
+            
+            context_advice = advisor.get_fashion_advice(context_question, "general")
+        else:
+            context_advice = {"advice": ""}
+        
+        response = {
+            "success": True,
+            "season": season,
+            "trend_advice": advice_result["advice"],
+            "adaptation_advice": context_advice["advice"],
+            "style_preference": style_preference,
+            "age_range": age_range,
+            "lifestyle": lifestyle,
+            "confidence": advice_result.get("confidence", "medium"),
+            "timestamp": int(time.time())
+        }
+        
+        logger.info(f"Trend analysis for: {season} season")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Trend analysis error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to provide trend analysis: {str(e)}"
+        }
+
+@app.get("/api/fashion-categories")
+async def get_fashion_categories():
+    """
+    Get available fashion categories and knowledge topics
+    """
+    try:
+        advisor = get_fashion_advisor()
+        
+        # Get knowledge categories
+        categories = {}
+        for item in advisor.fashion_kb.knowledge_data:
+            category = item["category"]
+            if category not in categories:
+                categories[category] = []
+            categories[category].append(item["topic"])
+        
+        response = {
+            "success": True,
+            "categories": categories,
+            "total_knowledge_items": len(advisor.fashion_kb.knowledge_data),
+            "available_advice_types": ["general", "outfit", "color"],
+            "timestamp": int(time.time())
+        }
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Fashion categories error: {str(e)}")
+        return {
+            "success": False,
+            "error": f"Failed to get fashion categories: {str(e)}"
+        }
+
+# Run server
+if __name__ == "__main__":
     server = uvicorn.Server(config)
     try:
         server.run()

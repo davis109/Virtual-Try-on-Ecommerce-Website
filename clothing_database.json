@@ -1,0 +1,130 @@
+{
+  "clothing_items": [
+    {
+      "id": "shirt_001",
+      "name": "Classic White Cotton Shirt",
+      "category": "shirt",
+      "fabric": "cotton",
+      "color": "white",
+      "pattern": "solid",
+      "fit": "regular",
+      "style": "classic",
+      "season": "all",
+      "image_path": "public/images/white_shirt.jpg",
+      "description": "Crisp white cotton dress shirt perfect for professional and casual wear. Features button-down collar and long sleeves.",
+      "tags": ["professional", "versatile", "classic", "business"],
+      "texture_description": "smooth cotton weave with subtle texture",
+      "material_properties": {
+        "breathable": true,
+        "wrinkle_resistant": false,
+        "stretch": false,
+        "durability": "high"
+      }
+    },
+    {
+      "id": "blazer_001",
+      "name": "Navy Blue Wool Blazer",
+      "category": "jacket",
+      "fabric": "wool",
+      "color": "navy blue",
+      "pattern": "solid",
+      "fit": "tailored",
+      "style": "formal",
+      "season": "fall",
+      "image_path": "public/images/navy_blazer.jpg",
+      "description": "Premium wool blazer with tailored fit for professional occasions. Features notched lapels and two-button closure.",
+      "tags": ["formal", "professional", "elegant", "business"],
+      "texture_description": "fine wool weave with structured drape",
+      "material_properties": {
+        "breathable": true,
+        "wrinkle_resistant": true,
+        "stretch": false,
+        "durability": "very high"
+      }
+    },
+    {
+      "id": "jeans_001",
+      "name": "Dark Denim Jeans",
+      "category": "pants",
+      "fabric": "denim",
+      "color": "dark blue",
+      "pattern": "solid",
+      "fit": "slim",
+      "style": "casual",
+      "season": "all",
+      "image_path": "public/images/dark_jeans.jpg",
+      "description": "Premium dark wash denim jeans with modern slim fit. Five-pocket styling with comfortable stretch.",
+      "tags": ["casual", "versatile", "modern", "everyday"],
+      "texture_description": "structured denim weave with slight stretch",
+      "material_properties": {
+        "breathable": false,
+        "wrinkle_resistant": true,
+        "stretch": true,
+        "durability": "very high"
+      }
+    },
+    {
+      "id": "dress_001",
+      "name": "Black Cocktail Dress",
+      "category": "dress",
+      "fabric": "polyester",
+      "color": "black",
+      "pattern": "solid",
+      "fit": "fitted",
+      "style": "elegant",
+      "season": "all",
+      "image_path": "public/images/black_dress.jpg",
+      "description": "Elegant black cocktail dress with fitted silhouette. Perfect for evening events and formal occasions.",
+      "tags": ["formal", "elegant", "evening", "party"],
+      "texture_description": "smooth polyester with slight sheen",
+      "material_properties": {
+        "breathable": false,
+        "wrinkle_resistant": true,
+        "stretch": true,
+        "durability": "high"
+      }
+    },
+    {
+      "id": "sweater_001",
+      "name": "Cashmere V-Neck Sweater",
+      "category": "sweater",
+      "fabric": "cashmere",
+      "color": "gray",
+      "pattern": "solid",
+      "fit": "regular",
+      "style": "casual",
+      "season": "winter",
+      "image_path": "public/images/gray_sweater.jpg",
+      "description": "Luxurious cashmere v-neck sweater in classic gray. Soft and warm for cold weather styling.",
+      "tags": ["luxury", "warm", "soft", "winter"],
+      "texture_description": "ultra-soft cashmere with fine knit",
+      "material_properties": {
+        "breathable": true,
+        "wrinkle_resistant": false,
+        "stretch": true,
+        "durability": "medium"
+      }
+    },
+    {
+      "id": "tshirt_001",
+      "name": "Basic White T-Shirt",
+      "category": "t-shirt",
+      "fabric": "cotton",
+      "color": "white",
+      "pattern": "solid",
+      "fit": "regular",
+      "style": "casual",
+      "season": "all",
+      "image_path": "public/images/white_tshirt.jpg",
+      "description": "Essential white cotton t-shirt with comfortable fit. Perfect for layering or wearing alone.",
+      "tags": ["basic", "essential", "comfortable", "everyday"],
+      "texture_description": "soft cotton jersey with smooth finish",
+      "material_properties": {
+        "breathable": true,
+        "wrinkle_resistant": false,
+        "stretch": true,
+        "durability": "medium"
+      }
+    }
+  ]
+}

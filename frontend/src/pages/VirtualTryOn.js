@@ -274,6 +274,8 @@ const VirtualTryOn = () => {
   const [preloadedImages, setPreloadedImages] = useState({});
   const [isPreloading, setIsPreloading] = useState(true);
   const [segmindAvailable, setSegmindAvailable] = useState(true);
+  const [lvClothes, setLvClothes] = useState([]);
+  const [isLoadingLV, setIsLoadingLV] = useState(false);
   
   const dispatch = useDispatch();
   
@@ -542,6 +544,24 @@ const VirtualTryOn = () => {
     };
     
     checkSegmindAvailability();
+  }, []);
+
+  const fetchLVClothes = async () => {
+    try {
+      setIsLoadingLV(true);
+      const response = await axios.get(`${API_URL}/api/lv-clothes`);
+      if (response.data && response.data.clothes) {
+        setLvClothes(response.data.clothes);
+      }
+    } catch (error) {
+      console.error('Error fetching LV clothes:', error);
+    } finally {
+      setIsLoadingLV(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLVClothes();
   }, []);
 
   const handleModelUpload = async (file) => {
@@ -921,7 +941,7 @@ const VirtualTryOn = () => {
 
   // Render the product cards, but ensure we show something during loading
   const renderProductCards = () => {
-    if (isPreloading) {
+    if (isPreloading || isLoadingLV) {
       return (
         <Box sx={{ 
           display: 'flex', 
@@ -935,71 +955,89 @@ const VirtualTryOn = () => {
       </Box>
       );
     }
-    
-    if (filteredProducts.length === 0) {
-      return (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography>No products found in this category.</Typography>
-        </Box>
-      );
-    }
-    
+
+    const sections = [
+      {
+        title: "Louis Vuitton Collection",
+        items: lvClothes.map(cloth => ({
+          id: cloth.filename,
+          name: cloth.filename.split('_')[0],
+          image: `${API_URL}/api/lv-clothes/${cloth.filename}`,
+          category: 'Upper body',
+          price: 999.99
+        }))
+      },
+      {
+        title: "Standard Collection",
+        items: filteredProducts
+      }
+    ];
+
     return (
-      <Grid container spacing={2}>
-        {filteredProducts.map((product, index) => (
-          <Grid item xs={6} sm={4} md={3} key={product.id}>
-            <StyledCard 
-              onClick={() => handleProductSelect(product)}
-              ref={el => {
-                if (el && !productCardsRef.current.includes(el)) {
-                  productCardsRef.current.push(el);
-                }
-              }}
-              sx={{ cursor: 'pointer' }}
-            >
-              <Box sx={{ position: 'relative' }}>
-                <ProductImage
-                  image={product.image}
-                  title={product.name}
-                />
-                <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
-                  <CategoryChip
-                    label={product.category}
-                    size="small"
-                    category={product.category}
-                  />
-                </Box>
-              </Box>
-              <CardContent>
-                <Typography variant="subtitle1" gutterBottom noWrap>
-                  {product.name}
-                </Typography>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Typography variant="body2" color="primary" fontWeight="bold">
-                    ${product.price.toFixed(2)}
-                  </Typography>
-                  <Box>
-                    <IconButton 
-                      size="small" 
-                      color="secondary"
-                      onClick={(e) => handleAddToWishlist(product, e)}
-                    >
-                      <FavoriteIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton 
-                      size="small" 
-                      color="primary"
-                      onClick={(e) => handleAddToCart(product, e)}
-                    >
-                      <ShoppingCartIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </Box>
-              </CardContent>
-            </StyledCard>
-          </Grid>
+      <>
+        {sections.map((section, sectionIndex) => (
+          <Box key={section.title} sx={{ mb: 4 }}>
+            <Typography variant="h6" sx={{ mb: 2, color: 'primary.main' }}>
+              {section.title}
+            </Typography>
+            <Grid container spacing={2}>
+              {section.items.map((product, index) => (
+                <Grid item xs={6} sm={4} md={3} key={product.id}>
+                  <StyledCard 
+                    onClick={() => handleProductSelect(product)}
+                    ref={el => {
+                      if (el && !productCardsRef.current.includes(el)) {
+                        productCardsRef.current.push(el);
+                      }
+                    }}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <Box sx={{ position: 'relative' }}>
+                      <ProductImage
+                        image={product.image}
+                        title={product.name}
+                      />
+                      <Box sx={{ position: 'absolute', top: 8, left: 8 }}>
+                        <CategoryChip
+                          label={product.category}
+                          size="small"
+                          category={product.category}
+                        />
+                      </Box>
+                    </Box>
+                    <CardContent>
+                      <Typography variant="subtitle1" gutterBottom noWrap>
+                        {product.name}
+                      </Typography>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Typography variant="body2" color="primary" fontWeight="bold">
+                          ${product.price.toFixed(2)}
+                        </Typography>
+                        <Box>
+                          <IconButton 
+                            size="small" 
+                            color="secondary"
+                            onClick={(e) => handleAddToWishlist(product, e)}
+                          >
+                            <FavoriteIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton 
+                            size="small" 
+                            color="primary"
+                            onClick={(e) => handleAddToCart(product, e)}
+                          >
+                            <ShoppingCartIcon fontSize="small" />
+                          </IconButton>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </StyledCard>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
         ))}
-      </Grid>
+      </>
     );
   };
 
@@ -1170,4 +1208,4 @@ const VirtualTryOn = () => {
   );
 };
 
-export default VirtualTryOn; 
+export default VirtualTryOn;

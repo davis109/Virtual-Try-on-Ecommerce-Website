@@ -1,0 +1,77 @@
+<svg width="800" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circuit board background -->
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f2ff;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#fc0fc0;stop-opacity:0.3" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Circuit paths -->
+  <path d="M100,100 L200,100 L200,200 L300,200 L300,300 L400,300 L400,400" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M50,150 L150,150 L150,250 L250,250 L250,350 L350,350 L350,450" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M150,50 L150,150 L250,150 L250,250 L350,250 L350,350 L450,350" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M200,300 L300,300 L300,400 L400,400 L400,500" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M250,350 L350,350 L350,450 L450,450 L450,550" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M300,400 L400,400 L400,500 L500,500 L500,600" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M350,450 L450,450 L450,550 L550,550 L550,650" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  <path d="M400,500 L500,500 L500,600 L600,600 L600,700" stroke="url(#grad1)" stroke-width="2" fill="none" />
+  
+  <!-- Connection nodes -->
+  <circle cx="200" cy="100" r="4" fill="#00f2ff" />
+  <circle cx="300" cy="200" r="4" fill="#00f2ff" />
+  <circle cx="400" cy="300" r="4" fill="#00f2ff" />
+  <circle cx="150" cy="150" r="4" fill="#fc0fc0" />
+  <circle cx="250" cy="250" r="4" fill="#fc0fc0" />
+  <circle cx="350" cy="350" r="4" fill="#fc0fc0" />
+  <circle cx="150" cy="150" r="4" fill="#00f2ff" />
+  <circle cx="250" cy="150" r="4" fill="#00f2ff" />
+  <circle cx="350" cy="250" r="4" fill="#00f2ff" />
+  <circle cx="300" cy="300" r="4" fill="#fc0fc0" />
+  <circle cx="400" cy="400" r="4" fill="#fc0fc0" />
+  <circle cx="350" cy="350" r="4" fill="#00f2ff" />
+  <circle cx="450" cy="450" r="4" fill="#00f2ff" />
+  <circle cx="400" cy="400" r="4" fill="#fc0fc0" />
+  <circle cx="500" cy="500" r="4" fill="#fc0fc0" />
+  <circle cx="450" cy="450" r="4" fill="#00f2ff" />
+  <circle cx="550" cy="550" r="4" fill="#00f2ff" />
+  <circle cx="500" cy="500" r="4" fill="#fc0fc0" />
+  <circle cx="600" cy="600" r="4" fill="#fc0fc0" />
+  
+  <!-- Diagonal paths -->
+  <path d="M100,700 L700,100" stroke="url(#grad1)" stroke-width="1.5" fill="none" />
+  <path d="M200,700 L700,200" stroke="url(#grad1)" stroke-width="1.5" fill="none" />
+  <path d="M300,700 L700,300" stroke="url(#grad1)" stroke-width="1.5" fill="none" />
+  <path d="M100,600 L600,100" stroke="url(#grad1)" stroke-width="1.5" fill="none" />
+  <path d="M100,500 L500,100" stroke="url(#grad1)" stroke-width="1.5" fill="none" />
+  <path d="M100,400 L400,100" stroke="url(#grad1)" stroke-width="1.5" fill="none" />
+  
+  <!-- Small decorative elements -->
+  <rect x="150" y="150" width="10" height="10" fill="#00f2ff" opacity="0.5" />
+  <rect x="250" y="250" width="10" height="10" fill="#fc0fc0" opacity="0.5" />
+  <rect x="350" y="350" width="10" height="10" fill="#00f2ff" opacity="0.5" />
+  <rect x="450" y="450" width="10" height="10" fill="#fc0fc0" opacity="0.5" />
+  <rect x="550" y="550" width="10" height="10" fill="#00f2ff" opacity="0.5" />
+  
+  <!-- Digital squares pattern -->
+  <rect x="100" y="100" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  <rect x="150" y="100" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  <rect x="200" y="100" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  <rect x="250" y="100" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  <rect x="300" y="100" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  <rect x="350" y="100" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  <rect x="400" y="100" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  
+  <rect x="100" y="150" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  <rect x="150" y="150" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  <rect x="200" y="150" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  <rect x="250" y="150" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  <rect x="300" y="150" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  <rect x="350" y="150" width="5" height="5" fill="#00f2ff" opacity="0.7" />
+  <rect x="400" y="150" width="5" height="5" fill="#fc0fc0" opacity="0.7" />
+  
+  <!-- Animated pulse circles (will be animated with CSS) -->
+  <circle cx="250" cy="250" r="15" fill="none" stroke="#00f2ff" stroke-width="1" opacity="0.5" class="pulse-circle" />
+  <circle cx="400" cy="400" r="15" fill="none" stroke="#fc0fc0" stroke-width="1" opacity="0.5" class="pulse-circle" />
+  <circle cx="550" cy="550" r="15" fill="none" stroke="#00f2ff" stroke-width="1" opacity="0.5" class="pulse-circle" />
+</svg> 

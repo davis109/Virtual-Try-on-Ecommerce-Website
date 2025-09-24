@@ -34,7 +34,8 @@ import {
   Checkroom as CheckroomIcon,
   Favorite as FavoriteIcon,
   AutoFixHigh as MagicWandIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  AutoAwesome
 } from '@mui/icons-material';
 import { useSelector } from 'react-redux';
 import { animateNavItems, buttonEnter, buttonLeave, linkEnter, linkLeave, animateLogo } from '../utils/animations';
@@ -93,8 +94,10 @@ const Navbar = () => {
   const navItems = [
     { text: 'Home', icon: <HomeIcon />, path: '/' },
     { text: 'Products', icon: <CategoryIcon />, path: '/products' },
-    { text: 'VTON', icon: <CheckroomIcon />, path: '/virtual-tryon' },
+    { text: 'VITON', icon: <CheckroomIcon />, path: '/virtual-tryon' },
     { text: 'Text to Clothing', icon: <MagicWandIcon />, path: '/text-to-clothing' },
+    { text: 'Style Polling', icon: <FavoriteIcon />, path: '/style-polling' },
+    { text: 'Style Advisor', icon: <AutoAwesome />, path: '/style-advisor' },
     { text: 'Wishlist', icon: <FavoriteIcon />, path: '/wishlist' },
   ];
   
@@ -102,7 +105,7 @@ const Navbar = () => {
     <Box sx={{ width: 280 }} role="presentation" onClick={toggleDrawer(false)} onKeyDown={toggleDrawer(false)}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2 }}>
         <Typography variant="h6" component="div" sx={{ fontWeight: 'bold' }}>
-          VTON
+          VITON
         </Typography>
         <IconButton onClick={toggleDrawer(false)}>
           <CloseIcon />
@@ -173,7 +176,7 @@ const Navbar = () => {
             }}
           >
             <CheckroomIcon sx={{ mr: 1, fontSize: 28 }} ref={logoRef} />
-            VTON
+            VITON
           </Typography>
           
           {!isMobile && (

@@ -1,0 +1,2 @@
+This directory contains catalog images for the Style Advisor feature. 
+Replace with actual image files when using the application in production. 

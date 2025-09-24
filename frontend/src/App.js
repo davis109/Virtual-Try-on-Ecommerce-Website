@@ -12,6 +12,8 @@ import Register from './pages/Register';
 import VirtualTryOn from './pages/VirtualTryOn';
 import Wishlist from './pages/Wishlist';
 import TextToClothingTryOn from './pages/TextToClothingTryOn';
+import StylePolling from './pages/StylePolling';
+import StyleAdvisor from './pages/StyleAdvisor';
 import BackgroundAnimation from './components/three/BackgroundAnimation';
 
 // Dark Cyberpunk Theme with neon accents
@@ -274,6 +276,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/virtual-tryon" element={<VirtualTryOn />} />
           <Route path="/text-to-clothing" element={<TextToClothingTryOn />} />
+          <Route path="/style-polling" element={<StylePolling />} />
+          <Route path="/style-advisor" element={<StyleAdvisor />} />
           <Route path="/wishlist" element={<Wishlist />} />
         </Routes>
       </Router>
